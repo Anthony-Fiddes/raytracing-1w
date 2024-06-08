@@ -25,4 +25,5 @@ func main() {
 			fmt.Printf("%d %d %d\n", scaledR, scaledG, b)
 		}
 	}
+	fmt.Fprint(os.Stderr, "\rDone.                    \n")
 }
