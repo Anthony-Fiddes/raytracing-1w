@@ -75,13 +75,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "\rScanlines remaining: %d ", imageHeight-j)
 		for i := 0; i < imageWidth; i++ {
 			// r and g are represented as a value between 0 and 1
-			r := float64(i) / (imageWidth - 1)
-			g := float64(j) / (imageWidth - 1)
-			scaledR := int(255.999 * r)
-			scaledG := int(255.999 * g)
-			b := 0
-
-			fmt.Printf("%d %d %d\n", scaledR, scaledG, b)
+			v := Vec3{
+				float64(i) / (imageWidth - 1),
+				float64(j) / (imageWidth - 1),
+				0,
+			}
+			pixel := Color{v}
+			fmt.Printf(toPPM(pixel))
 		}
 	}
 	fmt.Fprint(os.Stderr, "\rDone.                    \n")
