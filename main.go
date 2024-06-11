@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 )
 
@@ -32,7 +33,27 @@ func (v Vec3) Scale(factor float64) Vec3 {
 	return v
 }
 
+// X, Y, and Z represent red, green, and blue values. They are floats between 0 and 1
 type Color struct{ Vec Vec3 }
+
+func isValidColor(f float64) bool {
+	if f < 0 || f > 1 {
+		return false
+	}
+	return true
+}
+
+func (c Color) assertValid() {
+	if !isValidColor(c.R()) {
+		log.Panicf("%+v has invalid red value %g. It must be between 0 and 1", c, c.R())
+	}
+	if !isValidColor(c.G()) {
+		log.Panicf("%+v has invalid green value %g. It must be between 0 and 1", c, c.G())
+	}
+	if !isValidColor(c.B()) {
+		log.Panicf("%+v has invalid blue value %g. It must be between 0 and 1", c, c.B())
+	}
+}
 
 func (c Color) R() float64 {
 	return c.Vec.X
@@ -47,6 +68,7 @@ func (c Color) B() float64 {
 }
 
 func toPPM(c Color) string {
+	c.assertValid()
 	scaledR := int(255.999 * c.R())
 	scaledG := int(255.999 * c.G())
 	scaledB := int(255.999 * c.B())
