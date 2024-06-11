@@ -5,6 +5,65 @@ import (
 	"os"
 )
 
+type Vec3 struct {
+	X float64
+	Y float64
+	Z float64
+}
+
+func (v Vec3) Add(other Vec3) Vec3 {
+	v.X += other.X
+	v.Y += other.Y
+	v.Z += other.Z
+	return v
+}
+
+func (v Vec3) Subtract(other Vec3) Vec3 {
+	v.X -= other.X
+	v.Y -= other.Y
+	v.Z -= other.Z
+	return v
+}
+
+func (v Vec3) Scale(factor float64) Vec3 {
+	v.X *= factor
+	v.Y *= factor
+	v.Z *= factor
+	return v
+}
+
+type Color struct{ Vec Vec3 }
+
+func (c Color) R() float64 {
+	return c.Vec.X
+}
+
+func (c Color) G() float64 {
+	return c.Vec.Y
+}
+
+func (c Color) B() float64 {
+	return c.Vec.Z
+}
+
+func toPPM(c Color) string {
+	scaledR := int(255.999 * c.R())
+	scaledG := int(255.999 * c.G())
+	scaledB := int(255.999 * c.B())
+	return fmt.Sprintf("%d %d %d\n", scaledR, scaledG, scaledB)
+}
+
+type Ray struct {
+	Origin    Vec3
+	Direction Vec3
+}
+
+func (r Ray) At(t float64) Vec3 {
+	distance := r.Direction.Scale(t)
+	result := r.Origin.Add(distance)
+	return result
+}
+
 func main() {
 	const (
 		imageHeight = 256
