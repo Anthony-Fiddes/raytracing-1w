@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"math"
 	"os"
 )
 
@@ -92,6 +93,63 @@ func toPPM(c Color) string {
 	return fmt.Sprintf("%d %d %d\n", scaledR, scaledG, scaledB)
 }
 
+// camera is an object in the world
+type camera struct {
+	// Height is the number of pixels up/down
+	Height int
+	// Width is the number of pixels left/right
+	Width       int
+	aspectRatio float64
+	Center      Vec3
+	// distance between camera and viewport
+	focalLength float64
+	Viewport    viewport
+}
+
+// viewport represents the image that the camera captures.
+//
+// An increasing x goes to the right and increasing y goes down.
+type viewport struct {
+	width            float64
+	height           float64
+	widthVector      Vec3
+	heightVector     Vec3
+	PixelDeltaX      Vec3
+	PixelDeltaY      Vec3
+	upperLeft        Vec3
+	FirstPixelCenter Vec3
+}
+
+func NewCamera(width int, aspectRatio float64) camera {
+	if width <= 0 {
+		panic("width cannot be <= 0")
+	}
+	if aspectRatio <= 0 {
+		panic("aspect ratio cannot be <= 0")
+	}
+	height := int(float64(width) / aspectRatio)
+	if height == 0 {
+		height = 1
+	}
+
+	center := Vec3{X: 0, Y: 0, Z: 0}
+	viewHeight := 2.0
+	viewWidth := 2.0 * float64(width) / float64(height)
+	widthVector := Vec3{viewWidth, 0, 0}
+	heightVector := Vec3{0, -viewHeight, 0}
+	pixelDeltaX := widthVector.Divide(float64(width))
+	pixelDeltaY := heightVector.Divide(float64(height))
+	focalLength := 1.0
+	upperLeft := center.Subtract(Vec3{0, 0, focalLength}).Subtract(widthVector.Divide(2)).Subtract(heightVector.Divide(2))
+	firstPixelCenter := upperLeft.Add(pixelDeltaX.Divide(2)).Add(pixelDeltaY.Divide(2))
+	viewport := viewport{
+		viewWidth, viewHeight, widthVector,
+		heightVector, pixelDeltaX, pixelDeltaY,
+		upperLeft, firstPixelCenter,
+	}
+	return camera{height, width, aspectRatio, center, focalLength, viewport}
+}
+
 type Ray struct {
 	Origin    Vec3
 	Direction Vec3
@@ -103,23 +161,29 @@ func (r Ray) At(t float64) Vec3 {
 	return result
 }
 
-func main() {
-	const (
-		imageHeight = 256
-		imageWidth  = 256
-	)
+func (r Ray) Color() Color {
+	unitDirection := r.Direction.UnitVector()
+	// unit vector's y ranges from [-1, 1], so we transform the range to [0, 1]
+	// to do a linear interpolation and get a nice gradient from white to blue
+	a := 0.5*unitDirection.Y + 1
+	lightBlue := Color{Vec3{0.5, 0.7, 1}}
+	colorVec := white.Vec.Scale(1 - a).Add(lightBlue.Vec.Scale(a))
+	return Color{colorVec}
+}
 
-	fmt.Printf("P3\n%d %d\n255\n", imageWidth, imageHeight)
-	for j := 0; j < imageHeight; j++ {
-		fmt.Fprintf(os.Stderr, "\rScanlines remaining: %d ", imageHeight-j)
-		for i := 0; i < imageWidth; i++ {
-			// r and g are represented as a value between 0 and 1
-			v := Vec3{
-				float64(i) / (imageWidth - 1),
-				float64(j) / (imageWidth - 1),
-				0,
-			}
-			pixel := Color{v}
+func main() {
+	camera := NewCamera(400, 16./9.)
+	viewport := camera.Viewport
+
+	fmt.Printf("P3\n%d %d\n255\n", camera.Width, camera.Height)
+	for j := 0; j < camera.Height; j++ {
+		fmt.Fprintf(os.Stderr, "\rScanlines remaining: %d ", camera.Height-j)
+		yPixelCenter := camera.Viewport.FirstPixelCenter.Add(viewport.PixelDeltaY.Scale(float64(j)))
+		for i := 0; i < camera.Width; i++ {
+			pixelCenter := yPixelCenter.Add(viewport.PixelDeltaX.Scale(float64(i)))
+			rayDirection := pixelCenter.Subtract(camera.Center)
+			ray := Ray{camera.Center, rayDirection}
+			pixel := ray.Color()
 			fmt.Printf(toPPM(pixel))
 		}
 	}
