@@ -33,6 +33,18 @@ func (v Vec3) Scale(factor float64) Vec3 {
 	return v
 }
 
+func (v Vec3) Divide(factor float64) Vec3 {
+	return v.Scale(1. / factor)
+}
+
+func (v Vec3) Length() float64 {
+	return math.Sqrt(v.X*v.X + v.Y*v.Y + v.Z*v.Z)
+}
+
+func (v Vec3) UnitVector() Vec3 {
+	return v.Divide(v.Length())
+}
+
 // X, Y, and Z represent red, green, and blue values. They are floats between 0 and 1
 type Color struct{ Vec Vec3 }
 
