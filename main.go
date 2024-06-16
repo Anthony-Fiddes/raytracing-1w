@@ -48,6 +48,11 @@ func (v Vec3) UnitVector() Vec3 {
 // X, Y, and Z represent red, green, and blue values. They are floats between 0 and 1
 type Color struct{ Vec Vec3 }
 
+var (
+	white = Color{Vec3{1, 1, 1}}
+	black = Color{Vec3{0, 0, 0}}
+)
+
 func isValidColor(f float64) bool {
 	if f < 0 || f > 1 {
 		return false
