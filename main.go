@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"math"
+	"math/rand"
 	"os"
 )
 
@@ -111,8 +113,31 @@ type camera struct {
 	aspectRatio float64
 	Center      Vec3
 	// distance between camera and viewport
-	focalLength float64
-	Viewport    viewport
+	focalLength     float64
+	Viewport        viewport
+	SamplesPerPixel int
+}
+
+func (c camera) Render(w io.Writer, world Hittable) {
+	fmt.Fprintf(w, "P3\n%d %d\n255\n", c.Width, c.Height)
+	for j := 0; j < c.Height; j++ {
+		fmt.Fprintf(os.Stderr, "\rScanlines remaining: %d ", c.Height-j)
+		for i := 0; i < c.Width; i++ {
+			var pixel Color
+			for range c.SamplesPerPixel {
+				sampleXOffset := rand.Float64() - 0.5
+				sampleYOffset := rand.Float64() - 0.5
+				yPixelCenter := c.Viewport.FirstPixelCenter.Add(c.Viewport.PixelDeltaY.Scale(float64(j) + sampleYOffset))
+				sampleCenter := yPixelCenter.Add(c.Viewport.PixelDeltaX.Scale(float64(i) + sampleXOffset))
+				rayDirection := sampleCenter.Subtract(c.Center)
+				ray := Ray{c.Center, rayDirection}
+				pixel.Vec = pixel.Vec.Add(ray.Color(world, 0, math.Inf(1)).Vec)
+			}
+			pixel.Vec = pixel.Vec.Divide(float64(c.SamplesPerPixel))
+			fmt.Printf(toPPM(pixel))
+		}
+	}
+	fmt.Fprint(os.Stderr, "\rDone.                    \n")
 }
 
 // viewport represents the image that the camera captures.
@@ -129,7 +154,7 @@ type viewport struct {
 	FirstPixelCenter Vec3
 }
 
-func NewCamera(width int, aspectRatio float64) camera {
+func NewCamera(width int, aspectRatio float64, samplesPerPixel int) camera {
 	if width <= 0 {
 		panic("width cannot be <= 0")
 	}
@@ -156,7 +181,7 @@ func NewCamera(width int, aspectRatio float64) camera {
 		heightVector, pixelDeltaX, pixelDeltaY,
 		upperLeft, firstPixelCenter,
 	}
-	return camera{height, width, aspectRatio, center, focalLength, viewport}
+	return camera{height, width, aspectRatio, center, focalLength, viewport, samplesPerPixel}
 }
 
 type Ray struct {
@@ -198,6 +223,7 @@ type HitRecord struct {
 	Exterior bool
 }
 
+// outwardNormal is a normal pointing out of the hit geometry.
 func NewHitRecord(ray Ray, t float64, outwardNormal Vec3) HitRecord {
 	// If the ray * outwardNormal was negative, that would mean that the angle
 	// between the ray and outward normal is obtuse, meaning that the ray DOES point
@@ -309,23 +335,9 @@ func (w World) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
 }
 
 func main() {
-	camera := NewCamera(400, 16./9.)
-	viewport := camera.Viewport
+	camera := NewCamera(400, 16./9., 100)
 	world := make(World, 0, 3)
 	world = append(world, Sphere{Vec3{0, 0, -1}, 0.5})
 	world = append(world, Sphere{Vec3{0, -100.5, -1}, 100})
-
-	fmt.Printf("P3\n%d %d\n255\n", camera.Width, camera.Height)
-	for j := 0; j < camera.Height; j++ {
-		fmt.Fprintf(os.Stderr, "\rScanlines remaining: %d ", camera.Height-j)
-		yPixelCenter := camera.Viewport.FirstPixelCenter.Add(viewport.PixelDeltaY.Scale(float64(j)))
-		for i := 0; i < camera.Width; i++ {
-			pixelCenter := yPixelCenter.Add(viewport.PixelDeltaX.Scale(float64(i)))
-			rayDirection := pixelCenter.Subtract(camera.Center)
-			ray := Ray{camera.Center, rayDirection}
-			pixel := ray.Color(world, 0, math.Inf(1))
-			fmt.Printf(toPPM(pixel))
-		}
-	}
-	fmt.Fprint(os.Stderr, "\rDone.                    \n")
+	camera.Render(os.Stdout, world)
 }
