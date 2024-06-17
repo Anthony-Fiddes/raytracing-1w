@@ -7,58 +7,23 @@ import (
 	"math"
 	"math/rand"
 	"os"
+
+	"github.com/Anthony-Fiddes/raytracing-1w/vec"
 )
 
-type Vec3 struct {
-	X float64
-	Y float64
-	Z float64
-}
-
-func (v Vec3) Add(other Vec3) Vec3 {
-	v.X += other.X
-	v.Y += other.Y
-	v.Z += other.Z
-	return v
-}
-
-func (v Vec3) Subtract(other Vec3) Vec3 {
-	v.X -= other.X
-	v.Y -= other.Y
-	v.Z -= other.Z
-	return v
-}
-
-func (v Vec3) Scale(factor float64) Vec3 {
-	v.X *= factor
-	v.Y *= factor
-	v.Z *= factor
-	return v
-}
-
-func (v Vec3) Divide(factor float64) Vec3 {
-	return v.Scale(1. / factor)
-}
-
-func (v Vec3) Length() float64 {
-	return math.Sqrt(v.X*v.X + v.Y*v.Y + v.Z*v.Z)
-}
-
-func (v Vec3) UnitVector() Vec3 {
-	return v.Divide(v.Length())
-}
-
-func (v Vec3) Dot(other Vec3) float64 {
-	return v.X*other.X + v.Y*other.Y + v.Z*other.Z
-}
+type Vec3 = vec.Vec3
 
 // X, Y, and Z represent red, green, and blue values. They are floats between 0 and 1
 type Color struct{ Vec Vec3 }
 
+func newColor(r, g, b float64) Color {
+	return Color{Vec3{X: r, Y: g, Z: b}}
+}
+
 var (
-	white = Color{Vec3{1, 1, 1}}
-	black = Color{Vec3{0, 0, 0}}
-	red   = Color{Vec3{1, 0, 0}}
+	white = newColor(1, 1, 1)
+	black = newColor(0, 0, 0)
+	red   = newColor(1, 0, 0)
 )
 
 func isValidColor(f float64) bool {
@@ -169,12 +134,12 @@ func NewCamera(width int, aspectRatio float64, samplesPerPixel int) camera {
 	center := Vec3{X: 0, Y: 0, Z: 0}
 	viewHeight := 2.0
 	viewWidth := viewHeight * float64(width) / float64(height)
-	widthVector := Vec3{viewWidth, 0, 0}
-	heightVector := Vec3{0, -viewHeight, 0}
+	widthVector := vec.New(viewWidth, 0, 0)
+	heightVector := vec.New(0, -viewHeight, 0)
 	pixelDeltaX := widthVector.Divide(float64(width))
 	pixelDeltaY := heightVector.Divide(float64(height))
 	focalLength := 1.0
-	upperLeft := center.Subtract(Vec3{0, 0, focalLength}).Subtract(widthVector.Divide(2)).Subtract(heightVector.Divide(2))
+	upperLeft := center.Subtract(vec.New(0, 0, focalLength)).Subtract(widthVector.Divide(2)).Subtract(heightVector.Divide(2))
 	firstPixelCenter := upperLeft.Add(pixelDeltaX.Divide(2)).Add(pixelDeltaY.Divide(2))
 	viewport := viewport{
 		viewWidth, viewHeight, widthVector,
@@ -199,7 +164,7 @@ func (r Ray) Color(h Hittable, tMin float64, tMax float64) Color {
 	if hit, hr := h.Hit(r, tMin, tMax); hit {
 		// all normals will be unit vectors
 		// map the normal vector [-1,1] to valid color space [0,1]
-		color := Color{hr.Normal.Add(Vec3{1, 1, 1}).Divide(2)}
+		color := Color{hr.Normal.Add(vec.New(1, 1, 1)).Divide(2)}
 		return color
 	}
 
@@ -207,7 +172,7 @@ func (r Ray) Color(h Hittable, tMin float64, tMax float64) Color {
 	// unit vector's y ranges from [-1, 1], so we transform the range to [0, 1]
 	// to do a linear interpolation and get a nice gradient from white to blue
 	a := 0.5*unitDirection.Y + 1
-	lightBlue := Color{Vec3{0.5, 0.7, 1}}
+	lightBlue := newColor(0.5, 0.7, 1)
 	colorVec := white.Vec.Scale(1 - a).Add(lightBlue.Vec.Scale(a))
 	return Color{colorVec}
 }
@@ -337,7 +302,7 @@ func (w World) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
 func main() {
 	camera := NewCamera(400, 16./9., 100)
 	world := make(World, 0, 3)
-	world = append(world, Sphere{Vec3{0, 0, -1}, 0.5})
-	world = append(world, Sphere{Vec3{0, -100.5, -1}, 100})
+	world = append(world, Sphere{vec.New(0, 0, -1), 0.5})
+	world = append(world, Sphere{vec.New(0, -100.5, -1), 100})
 	camera.Render(os.Stdout, world)
 }
