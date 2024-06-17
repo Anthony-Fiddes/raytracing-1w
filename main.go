@@ -171,10 +171,10 @@ func (r Ray) At(t float64) Vec3 {
 }
 
 func (r Ray) Color(h Hittable, tMin float64, tMax float64) Color {
-	if hit, _, normal := h.Hit(r, tMin, tMax); hit {
+	if hit, hr := h.Hit(r, tMin, tMax); hit {
 		// all normals will be unit vectors
 		// map the normal vector [-1,1] to valid color space [0,1]
-		color := Color{normal.Add(Vec3{1, 1, 1}).Divide(2)}
+		color := Color{hr.Normal.Add(Vec3{1, 1, 1}).Divide(2)}
 		return color
 	}
 
@@ -187,14 +187,17 @@ func (r Ray) Color(h Hittable, tMin float64, tMax float64) Color {
 	return Color{colorVec}
 }
 
+type HitRecord struct {
+	// Factor to scale ray by to get hit point
+	T float64
+	// Normal vector at the hit point
+	Normal Vec3
+}
+
 type Hittable interface {
 	// Hit returns whether the ray hits the Hittable within the range
-	// [tMin,tMax] along the ray. If hit is false, t and normal are invalid.
-	//
-	// Otherwise, t is the scalar factor we can multiply the ray's direction
-	// vector by to get a Vector that represents where the ray hits the object
-	// if it did, and normal is normal vector at the hit point.
-	Hit(ray Ray, tMin float64, tMax float64) (hit bool, t float64, normal Vec3)
+	// [tMin,tMax] along the ray. If hit is false, HitRecord is not valid.
+	Hit(ray Ray, tMin float64, tMax float64) (hit bool, record HitRecord)
 }
 
 type Sphere struct {
@@ -202,7 +205,7 @@ type Sphere struct {
 	Radius float64
 }
 
-func (s Sphere) Hit(ray Ray, tMin float64, tMax float64) (bool, float64, Vec3) {
+func (s Sphere) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
 	if s.Radius < 0 {
 		log.Panicf("Sphere radius cannot be negative")
 	}
@@ -241,7 +244,7 @@ func (s Sphere) Hit(ray Ray, tMin float64, tMax float64) (bool, float64, Vec3) {
 	c := Z.Dot(Z) - (s.Radius * s.Radius)
 	discriminant := b*b - 4*a*c
 	if discriminant < 0 {
-		return false, 0, Vec3{}
+		return false, HitRecord{}
 	}
 
 	t := (-b - math.Sqrt(discriminant)) / (2 * a)
@@ -250,12 +253,12 @@ func (s Sphere) Hit(ray Ray, tMin float64, tMax float64) (bool, float64, Vec3) {
 		t = (-b + math.Sqrt(discriminant)) / (2 * a)
 		if t < tMin || t > tMax {
 			// still out of the acceptable range
-			return false, 0, Vec3{}
+			return false, HitRecord{}
 		}
 	}
 	hitPoint := ray.Direction.Scale(t)
 	normal := hitPoint.Subtract(s.Center).UnitVector()
-	return true, t, normal
+	return true, HitRecord{t, normal}
 }
 
 func main() {
