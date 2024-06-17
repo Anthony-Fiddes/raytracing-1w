@@ -190,8 +190,36 @@ func (r Ray) Color(h Hittable, tMin float64, tMax float64) Color {
 type HitRecord struct {
 	// Factor to scale ray by to get hit point
 	T float64
-	// Normal vector at the hit point
+	// Normal vector at the hit point. It points against the ray and is
+	// expected to be a unit vector.
 	Normal Vec3
+	// Exterior is whether the ray hit the geometry from the outside or the
+	// inside
+	Exterior bool
+}
+
+func NewHitRecord(ray Ray, t float64, outwardNormal Vec3) HitRecord {
+	// If the ray * outwardNormal was negative, that would mean that the angle
+	// between the ray and outward normal is obtuse, meaning that the ray DOES point
+	// against the exterior.
+	exterior := ray.Direction.Dot(outwardNormal) < 0
+	var normal Vec3
+	if exterior {
+		normal = outwardNormal
+	} else {
+		normal = outwardNormal.Scale(-1)
+	}
+
+	length := normal.Length()
+	const acceptableDelta = 0.001
+	if math.Abs(length-1) < acceptableDelta {
+		log.Panicf(
+			"Normal %+v must be a unit vector, but has length %v. (acceptable delta is +-%v)",
+			normal, length, acceptableDelta,
+		)
+	}
+
+	return HitRecord{t, normal, exterior}
 }
 
 type Hittable interface {
@@ -257,8 +285,8 @@ func (s Sphere) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
 		}
 	}
 	hitPoint := ray.Direction.Scale(t)
-	normal := hitPoint.Subtract(s.Center).UnitVector()
-	return true, HitRecord{t, normal}
+	outwardNormal := hitPoint.Subtract(s.Center).Divide(s.Radius)
+	return true, NewHitRecord(ray, t, outwardNormal)
 }
 
 func main() {
