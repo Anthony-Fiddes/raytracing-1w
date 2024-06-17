@@ -170,12 +170,9 @@ func (r Ray) At(t float64) Vec3 {
 	return result
 }
 
-func (r Ray) Color() Color {
-	sphere := Sphere{Vec3{0, 0, -1}, 0.5}
-	if hit, t := r.HitSphere(sphere); hit {
-		sphereHit := r.Direction.Scale(t)
+func (r Ray) Color(h Hittable) Color {
+	if hit, _, normal := h.Hit(r); hit {
 		// all normals will be unit vectors
-		normal := sphereHit.Subtract(sphere.Center).UnitVector()
 		// map the normal vector [-1,1] to valid color space [0,1]
 		color := Color{normal.Add(Vec3{1, 1, 1}).Divide(2)}
 		return color
@@ -190,11 +187,23 @@ func (r Ray) Color() Color {
 	return Color{colorVec}
 }
 
-// HitSphere returns whether the ray hits and the scalar factor we can multiply
-// the ray's direction vector by to get a Vector that represents where the ray
-// hits the sphere if it did.
-func (r Ray) HitSphere(sphere Sphere) (bool, float64) {
-	if sphere.Radius < 0 {
+type Hittable interface {
+	// Hit returns whether the ray hits the Hittable. If hit is false, t and
+	// normal are invalid.
+	//
+	// Otherwise, t is the scalar factor we can multiply the ray's direction
+	// vector by to get a Vector that represents where the ray hits the object
+	// if it did, and normal is normal vector at the hit point.
+	Hit(Ray) (hit bool, t float64, normal Vec3)
+}
+
+type Sphere struct {
+	Center Vec3
+	Radius float64
+}
+
+func (s Sphere) Hit(ray Ray) (bool, float64, Vec3) {
+	if s.Radius < 0 {
 		log.Panicf("Sphere radius cannot be negative")
 	}
 
@@ -224,28 +233,26 @@ func (r Ray) HitSphere(sphere Sphere) (bool, float64) {
 	// discriminant. If it's less than 0, then there are no real solutions to the
 	// equation, which means that the ray does not hit the sphere. Otherwise there are
 	// one or two solutions, so the ray DOES hit.
-	d := r.Direction
-	Z := sphere.Center.Subtract(r.Origin)
+	d := ray.Direction
+	Z := s.Center.Subtract(ray.Origin)
 	a := d.Dot(d)
 	// TODO: There's an optimization we can do by factoring out -2 from b.
 	b := d.Scale(-2).Dot(Z)
-	c := Z.Dot(Z) - (sphere.Radius * sphere.Radius)
+	c := Z.Dot(Z) - (s.Radius * s.Radius)
 	discriminant := b*b - 4*a*c
 	if discriminant < 0 {
-		return false, 0
+		return false, 0, Vec3{}
 	}
 	t := (-b - math.Sqrt(discriminant)) / (2 * a)
-	return true, t
-}
-
-type Sphere struct {
-	Center Vec3
-	Radius float64
+	hitPoint := ray.Direction.Scale(t)
+	normal := hitPoint.Subtract(s.Center).UnitVector()
+	return true, t, normal
 }
 
 func main() {
 	camera := NewCamera(400, 16./9.)
 	viewport := camera.Viewport
+	sphere := Sphere{Vec3{0, 0, -1}, 0.5}
 
 	fmt.Printf("P3\n%d %d\n255\n", camera.Width, camera.Height)
 	for j := 0; j < camera.Height; j++ {
@@ -255,7 +262,7 @@ func main() {
 			pixelCenter := yPixelCenter.Add(viewport.PixelDeltaX.Scale(float64(i)))
 			rayDirection := pixelCenter.Subtract(camera.Center)
 			ray := Ray{camera.Center, rayDirection}
-			pixel := ray.Color()
+			pixel := ray.Color(sphere)
 			fmt.Printf(toPPM(pixel))
 		}
 	}
