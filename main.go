@@ -191,6 +191,8 @@ func (r Ray) HitSphere(sphere Sphere) bool {
 
 		(t^2)(d * d) - 2(d * Z)t + (Z * Z - r^2) = 0
 
+		derived from (C - (Q + td)) * (C - (Q + td)) = r^2
+
 		Explanation:
 
 		* is the dot operator
@@ -202,8 +204,9 @@ func (r Ray) HitSphere(sphere Sphere) bool {
 
 		r is the radius of the sphere
 
-		t is the x of the quadratic. I.e. is the input of this function. When t
-		satisfies the equation, the ray has hit the sphere
+		t is the input of the quadratic. It is used to scale the direction
+		vector of the ray to tell us how far along the ray we are. When t
+		satisfies the above equation, the ray has hit the sphere.
 
 		We can test how many roots there are to this equation by just calculating the
 		discriminant. If it's less than 0, then there are no real solutions to the
