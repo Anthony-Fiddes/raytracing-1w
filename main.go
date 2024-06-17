@@ -66,15 +66,19 @@ func isValidColor(f float64) bool {
 	return true
 }
 
+func (c Color) String() string {
+	return fmt.Sprintf("Color{Red: %v, Green: %v, Blue: %v}", c.R(), c.G(), c.B())
+}
+
 func (c Color) assertValid() {
 	if !isValidColor(c.R()) {
-		log.Panicf("%+v has invalid red value %g. It must be between 0 and 1", c, c.R())
+		log.Panicf("%v has invalid red value %g. It must be between 0 and 1", c, c.R())
 	}
 	if !isValidColor(c.G()) {
-		log.Panicf("%+v has invalid green value %g. It must be between 0 and 1", c, c.G())
+		log.Panicf("%v has invalid green value %g. It must be between 0 and 1", c, c.G())
 	}
 	if !isValidColor(c.B()) {
-		log.Panicf("%+v has invalid blue value %g. It must be between 0 and 1", c, c.B())
+		log.Panicf("%v has invalid blue value %g. It must be between 0 and 1", c, c.B())
 	}
 }
 
@@ -167,8 +171,14 @@ func (r Ray) At(t float64) Vec3 {
 }
 
 func (r Ray) Color() Color {
-	if r.HitSphere(Sphere{Vec3{0, 0, -1}, 0.5}) {
-		return red
+	sphere := Sphere{Vec3{0, 0, -1}, 0.5}
+	if hit, t := r.HitSphere(sphere); hit {
+		sphereHit := r.Direction.Scale(t)
+		// all normals will be unit vectors
+		normal := sphereHit.Subtract(sphere.Center).UnitVector()
+		// map the normal vector [-1,1] to valid color space [0,1]
+		color := Color{normal.Add(Vec3{1, 1, 1}).Divide(2)}
+		return color
 	}
 
 	unitDirection := r.Direction.UnitVector()
@@ -180,48 +190,52 @@ func (r Ray) Color() Color {
 	return Color{colorVec}
 }
 
-func (r Ray) HitSphere(sphere Sphere) bool {
+// HitSphere returns whether the ray hits and the scalar factor we can multiply
+// the ray's direction vector by to get a Vector that represents where the ray
+// hits the sphere if it did.
+func (r Ray) HitSphere(sphere Sphere) (bool, float64) {
 	if sphere.Radius < 0 {
 		log.Panicf("Sphere radius cannot be negative")
 	}
 
-	/*
-		we can tell whether a ray hits the sphere by considering the following
-		quadratic equation:
-
-		(t^2)(d * d) - 2(d * Z)t + (Z * Z - r^2) = 0
-
-		derived from (C - (Q + td)) * (C - (Q + td)) = r^2
-
-		Explanation:
-
-		* is the dot operator
-
-		Z is (C-Q) where C is the center of the circle and Q is the origin of the
-		ray
-
-		d is the vector describing the direction of the ray
-
-		r is the radius of the sphere
-
-		t is the input of the quadratic. It is used to scale the direction
-		vector of the ray to tell us how far along the ray we are. When t
-		satisfies the above equation, the ray has hit the sphere.
-
-		We can test how many roots there are to this equation by just calculating the
-		discriminant. If it's less than 0, then there are no real solutions to the
-		equation, which means that the ray does not hit the sphere. Otherwise there are
-		one or two solutions, so the ray DOES hit.
-	*/
+	// We can tell whether a ray hits the sphere by considering the following
+	// quadratic equation:
+	//
+	// (t^2)(d * d) - 2(d * Z)t + (Z * Z - r^2) = 0
+	//
+	// derived from (C - (Q + td)) * (C - (Q + td)) = r^2
+	//
+	// Explanation:
+	//
+	// * is the dot operator
+	//
+	// Z is (C-Q) where C is the center of the circle and Q is the origin of the
+	// ray
+	//
+	// d is the vector describing the direction of the ray
+	//
+	// r is the radius of the sphere
+	//
+	// t is the input of the quadratic. It is used to scale the direction
+	// vector of the ray to tell us how far along the ray we are. When t
+	// satisfies the above equation, the ray has hit the sphere.
+	//
+	// We can test how many roots there are to this equation by just calculating the
+	// discriminant. If it's less than 0, then there are no real solutions to the
+	// equation, which means that the ray does not hit the sphere. Otherwise there are
+	// one or two solutions, so the ray DOES hit.
+	d := r.Direction
 	Z := sphere.Center.Subtract(r.Origin)
-	a := r.Direction.Dot(r.Direction)
-	b := r.Direction.Scale(-2).Dot(Z)
+	a := d.Dot(d)
+	// TODO: There's an optimization we can do by factoring out -2 from b.
+	b := d.Scale(-2).Dot(Z)
 	c := Z.Dot(Z) - (sphere.Radius * sphere.Radius)
 	discriminant := b*b - 4*a*c
 	if discriminant < 0 {
-		return false
+		return false, 0
 	}
-	return true
+	t := (-b - math.Sqrt(discriminant)) / (2 * a)
+	return true, t
 }
 
 type Sphere struct {
