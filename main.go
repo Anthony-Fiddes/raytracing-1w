@@ -168,7 +168,7 @@ func NewCamera(width int, aspectRatio float64, samplesPerPixel int) camera {
 
 	center := Vec3{X: 0, Y: 0, Z: 0}
 	viewHeight := 2.0
-	viewWidth := 2.0 * float64(width) / float64(height)
+	viewWidth := viewHeight * float64(width) / float64(height)
 	widthVector := Vec3{viewWidth, 0, 0}
 	heightVector := Vec3{0, -viewHeight, 0}
 	pixelDeltaX := widthVector.Divide(float64(width))
