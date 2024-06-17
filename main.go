@@ -170,8 +170,8 @@ func (r Ray) At(t float64) Vec3 {
 	return result
 }
 
-func (r Ray) Color(h Hittable) Color {
-	if hit, _, normal := h.Hit(r); hit {
+func (r Ray) Color(h Hittable, tMin float64, tMax float64) Color {
+	if hit, _, normal := h.Hit(r, tMin, tMax); hit {
 		// all normals will be unit vectors
 		// map the normal vector [-1,1] to valid color space [0,1]
 		color := Color{normal.Add(Vec3{1, 1, 1}).Divide(2)}
@@ -188,13 +188,13 @@ func (r Ray) Color(h Hittable) Color {
 }
 
 type Hittable interface {
-	// Hit returns whether the ray hits the Hittable. If hit is false, t and
-	// normal are invalid.
+	// Hit returns whether the ray hits the Hittable within the range
+	// [tMin,tMax] along the ray. If hit is false, t and normal are invalid.
 	//
 	// Otherwise, t is the scalar factor we can multiply the ray's direction
 	// vector by to get a Vector that represents where the ray hits the object
 	// if it did, and normal is normal vector at the hit point.
-	Hit(Ray) (hit bool, t float64, normal Vec3)
+	Hit(ray Ray, tMin float64, tMax float64) (hit bool, t float64, normal Vec3)
 }
 
 type Sphere struct {
@@ -202,7 +202,7 @@ type Sphere struct {
 	Radius float64
 }
 
-func (s Sphere) Hit(ray Ray) (bool, float64, Vec3) {
+func (s Sphere) Hit(ray Ray, tMin float64, tMax float64) (bool, float64, Vec3) {
 	if s.Radius < 0 {
 		log.Panicf("Sphere radius cannot be negative")
 	}
@@ -243,7 +243,16 @@ func (s Sphere) Hit(ray Ray) (bool, float64, Vec3) {
 	if discriminant < 0 {
 		return false, 0, Vec3{}
 	}
+
 	t := (-b - math.Sqrt(discriminant)) / (2 * a)
+	if t < tMin || t > tMax {
+		// try the other possible root
+		t = (-b + math.Sqrt(discriminant)) / (2 * a)
+		if t < tMin || t > tMax {
+			// still out of the acceptable range
+			return false, 0, Vec3{}
+		}
+	}
 	hitPoint := ray.Direction.Scale(t)
 	normal := hitPoint.Subtract(s.Center).UnitVector()
 	return true, t, normal
@@ -262,7 +271,7 @@ func main() {
 			pixelCenter := yPixelCenter.Add(viewport.PixelDeltaX.Scale(float64(i)))
 			rayDirection := pixelCenter.Subtract(camera.Center)
 			ray := Ray{camera.Center, rayDirection}
-			pixel := ray.Color(sphere)
+			pixel := ray.Color(sphere, 0, math.Inf(1))
 			fmt.Printf(toPPM(pixel))
 		}
 	}
