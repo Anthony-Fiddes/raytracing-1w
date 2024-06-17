@@ -46,12 +46,17 @@ func (v Vec3) UnitVector() Vec3 {
 	return v.Divide(v.Length())
 }
 
+func (v Vec3) Dot(other Vec3) float64 {
+	return v.X*other.X + v.Y*other.Y + v.Z*other.Z
+}
+
 // X, Y, and Z represent red, green, and blue values. They are floats between 0 and 1
 type Color struct{ Vec Vec3 }
 
 var (
 	white = Color{Vec3{1, 1, 1}}
 	black = Color{Vec3{0, 0, 0}}
+	red   = Color{Vec3{1, 0, 0}}
 )
 
 func isValidColor(f float64) bool {
@@ -162,6 +167,10 @@ func (r Ray) At(t float64) Vec3 {
 }
 
 func (r Ray) Color() Color {
+	if r.HitSphere(Sphere{Vec3{0, 0, -1}, 0.5}) {
+		return red
+	}
+
 	unitDirection := r.Direction.UnitVector()
 	// unit vector's y ranges from [-1, 1], so we transform the range to [0, 1]
 	// to do a linear interpolation and get a nice gradient from white to blue
@@ -169,6 +178,52 @@ func (r Ray) Color() Color {
 	lightBlue := Color{Vec3{0.5, 0.7, 1}}
 	colorVec := white.Vec.Scale(1 - a).Add(lightBlue.Vec.Scale(a))
 	return Color{colorVec}
+}
+
+func (r Ray) HitSphere(sphere Sphere) bool {
+	if sphere.Radius < 0 {
+		log.Panicf("Sphere radius cannot be negative")
+	}
+
+	/*
+		we can tell whether a ray hits the sphere by considering the following
+		quadratic equation:
+
+		(t^2)(d * d) - 2(d * Z)t + (Z * Z - r^2) = 0
+
+		Explanation:
+
+		* is the dot operator
+
+		Z is (C-Q) where C is the center of the circle and Q is the origin of the
+		ray
+
+		d is the vector describing the direction of the ray
+
+		r is the radius of the sphere
+
+		t is the x of the quadratic. I.e. is the input of this function. When t
+		satisfies the equation, the ray has hit the sphere
+
+		We can test how many roots there are to this equation by just calculating the
+		discriminant. If it's less than 0, then there are no real solutions to the
+		equation, which means that the ray does not hit the sphere. Otherwise there are
+		one or two solutions, so the ray DOES hit.
+	*/
+	Z := sphere.Center.Subtract(r.Origin)
+	a := r.Direction.Dot(r.Direction)
+	b := r.Direction.Scale(-2).Dot(Z)
+	c := Z.Dot(Z) - (sphere.Radius * sphere.Radius)
+	discriminant := b*b - 4*a*c
+	if discriminant < 0 {
+		return false
+	}
+	return true
+}
+
+type Sphere struct {
+	Center Vec3
+	Radius float64
 }
 
 func main() {
