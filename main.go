@@ -212,9 +212,9 @@ func NewHitRecord(ray Ray, t float64, outwardNormal Vec3) HitRecord {
 
 	length := normal.Length()
 	const acceptableDelta = 0.001
-	if math.Abs(length-1) < acceptableDelta {
+	if math.Abs(length-1) > acceptableDelta {
 		log.Panicf(
-			"Normal %+v must be a unit vector, but has length %v. (acceptable delta is +-%v)",
+			"Normal %+v must be a unit vector, but has length %v (acceptable delta is +-%v)",
 			normal, length, acceptableDelta,
 		)
 	}
@@ -289,10 +289,31 @@ func (s Sphere) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
 	return true, NewHitRecord(ray, t, outwardNormal)
 }
 
+type World []Hittable
+
+func (w World) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
+	hitAnything := false
+	closest := tMax
+	var closestRecord HitRecord
+	for _, object := range w {
+		if object == nil {
+			log.Panicf("how hard is it to not add a nil value to world?")
+		}
+		if hit, record := object.Hit(ray, tMin, closest); hit {
+			closest = record.T
+			closestRecord = record
+			hitAnything = true
+		}
+	}
+	return hitAnything, closestRecord
+}
+
 func main() {
 	camera := NewCamera(400, 16./9.)
 	viewport := camera.Viewport
-	sphere := Sphere{Vec3{0, 0, -1}, 0.5}
+	world := make(World, 0, 3)
+	world = append(world, Sphere{Vec3{0, 0, -1}, 0.5})
+	world = append(world, Sphere{Vec3{0, -100.5, -1}, 100})
 
 	fmt.Printf("P3\n%d %d\n255\n", camera.Width, camera.Height)
 	for j := 0; j < camera.Height; j++ {
@@ -302,7 +323,7 @@ func main() {
 			pixelCenter := yPixelCenter.Add(viewport.PixelDeltaX.Scale(float64(i)))
 			rayDirection := pixelCenter.Subtract(camera.Center)
 			ray := Ray{camera.Center, rayDirection}
-			pixel := ray.Color(sphere, 0, math.Inf(1))
+			pixel := ray.Color(world, 0, math.Inf(1))
 			fmt.Printf(toPPM(pixel))
 		}
 	}
