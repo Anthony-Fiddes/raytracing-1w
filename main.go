@@ -168,8 +168,9 @@ func (r Ray) Color(h Hittable, tMin float64, tMax float64, depth int) Color {
 	}
 
 	if hit, record := h.Hit(r, tMin, tMax); hit {
-		// bounce
-		bounceDirection := vec.RandomUnitHemisphere(record.Normal)
+		// bounce with lambertian reflection
+		tangentSpherePoint := vec.RandomUnit().Add(record.Normal)
+		bounceDirection := tangentSpherePoint.Subtract(record.HitPoint)
 		newRay := Ray{record.HitPoint, bounceDirection}
 		// make objects gray for now
 		colorVec := newRay.Color(h, tMin, tMax, depth-1).Vec.Scale(.5)
