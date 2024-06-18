@@ -81,6 +81,7 @@ type camera struct {
 	focalLength     float64
 	Viewport        viewport
 	SamplesPerPixel int
+	MaxDepth        int
 }
 
 func (c camera) Render(w io.Writer, world Hittable) {
@@ -96,7 +97,7 @@ func (c camera) Render(w io.Writer, world Hittable) {
 				sampleCenter := yPixelCenter.Add(c.Viewport.PixelDeltaX.Scale(float64(i) + sampleXOffset))
 				rayDirection := sampleCenter.Subtract(c.Center)
 				ray := Ray{c.Center, rayDirection}
-				pixel.Vec = pixel.Vec.Add(ray.Color(world, 0, math.Inf(1)).Vec)
+				pixel.Vec = pixel.Vec.Add(ray.Color(world, 0.001, math.Inf(1), c.MaxDepth).Vec)
 			}
 			pixel.Vec = pixel.Vec.Divide(float64(c.SamplesPerPixel))
 			fmt.Printf(toPPM(pixel))
@@ -119,7 +120,7 @@ type viewport struct {
 	FirstPixelCenter Vec3
 }
 
-func NewCamera(width int, aspectRatio float64, samplesPerPixel int) camera {
+func NewCamera(width int, aspectRatio float64, samplesPerPixel int, maxDepth int) camera {
 	if width <= 0 {
 		panic("width cannot be <= 0")
 	}
@@ -146,7 +147,7 @@ func NewCamera(width int, aspectRatio float64, samplesPerPixel int) camera {
 		heightVector, pixelDeltaX, pixelDeltaY,
 		upperLeft, firstPixelCenter,
 	}
-	return camera{height, width, aspectRatio, center, focalLength, viewport, samplesPerPixel}
+	return camera{height, width, aspectRatio, center, focalLength, viewport, samplesPerPixel, maxDepth}
 }
 
 type Ray struct {
@@ -160,12 +161,14 @@ func (r Ray) At(t float64) Vec3 {
 	return result
 }
 
-func (r Ray) Color(h Hittable, tMin float64, tMax float64) Color {
-	if hit, hr := h.Hit(r, tMin, tMax); hit {
-		// all normals will be unit vectors
-		// map the normal vector [-1,1] to valid color space [0,1]
-		color := Color{hr.Normal.Add(vec.New(1, 1, 1)).Divide(2)}
-		return color
+func (r Ray) Color(h Hittable, tMin float64, tMax float64, depth int) Color {
+	if depth <= 0 {
+		// no more light is gathered
+		return black
+	}
+
+	if hit, record := h.Hit(r, tMin, tMax); hit {
+		return Color{record.Normal.Add(vec.New(1, 1, 1)).Divide(2)}
 	}
 
 	unitDirection := r.Direction.UnitVector()
@@ -186,10 +189,13 @@ type HitRecord struct {
 	// Exterior is whether the ray hit the geometry from the outside or the
 	// inside
 	Exterior bool
+	// Where the ray hit the geometry
+	HitPoint Vec3
 }
 
-// outwardNormal is a normal pointing out of the hit geometry.
-func NewHitRecord(ray Ray, t float64, outwardNormal Vec3) HitRecord {
+// outwardNormal is a normal pointing out of the hit geometry. It must be a unit
+// vector.
+func NewHitRecord(ray Ray, t float64, outwardNormal Vec3, hitPoint Vec3) HitRecord {
 	// If the ray * outwardNormal was negative, that would mean that the angle
 	// between the ray and outward normal is obtuse, meaning that the ray DOES point
 	// against the exterior.
@@ -202,7 +208,7 @@ func NewHitRecord(ray Ray, t float64, outwardNormal Vec3) HitRecord {
 	}
 
 	length := normal.Length()
-	const acceptableDelta = 0.001
+	const acceptableDelta = 0.02
 	if math.Abs(length-1) > acceptableDelta {
 		log.Panicf(
 			"Normal %+v must be a unit vector, but has length %v (acceptable delta is +-%v)",
@@ -210,7 +216,7 @@ func NewHitRecord(ray Ray, t float64, outwardNormal Vec3) HitRecord {
 		)
 	}
 
-	return HitRecord{t, normal, exterior}
+	return HitRecord{t, normal, exterior, hitPoint}
 }
 
 type Hittable interface {
@@ -240,7 +246,7 @@ func (s Sphere) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
 	//
 	// * is the dot operator
 	//
-	// Z is (C-Q) where C is the center of the circle and Q is the origin of the
+	// Z is (C-Q) where C is the center of the sphere and Q is the origin of the
 	// ray
 	//
 	// d is the vector describing the direction of the ray
@@ -259,25 +265,25 @@ func (s Sphere) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
 	Z := s.Center.Subtract(ray.Origin)
 	a := d.Dot(d)
 	// TODO: There's an optimization we can do by factoring out -2 from b.
-	b := d.Scale(-2).Dot(Z)
+	b := d.Dot(Z) * -2.
 	c := Z.Dot(Z) - (s.Radius * s.Radius)
 	discriminant := b*b - 4*a*c
 	if discriminant < 0 {
 		return false, HitRecord{}
 	}
 
-	t := (-b - math.Sqrt(discriminant)) / (2 * a)
-	if t < tMin || t > tMax {
+	root := (-b - math.Sqrt(discriminant)) / (2. * a)
+	if root <= tMin || root >= tMax {
 		// try the other possible root
-		t = (-b + math.Sqrt(discriminant)) / (2 * a)
-		if t < tMin || t > tMax {
+		root = (-b + math.Sqrt(discriminant)) / (2. * a)
+		if root <= tMin || root >= tMax {
 			// still out of the acceptable range
 			return false, HitRecord{}
 		}
 	}
-	hitPoint := ray.Direction.Scale(t)
-	outwardNormal := hitPoint.Subtract(s.Center).Divide(s.Radius)
-	return true, NewHitRecord(ray, t, outwardNormal)
+	hitPoint := d.Scale(root)
+	outwardNormal := hitPoint.Subtract(s.Center).UnitVector()
+	return true, NewHitRecord(ray, root, outwardNormal, hitPoint)
 }
 
 type World []Hittable
@@ -300,7 +306,7 @@ func (w World) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
 }
 
 func main() {
-	camera := NewCamera(400, 16./9., 100)
+	camera := NewCamera(400, 16./9., 100, 50)
 	world := make(World, 0, 3)
 	world = append(world, Sphere{vec.New(0, 0, -1), 0.5})
 	world = append(world, Sphere{vec.New(0, -100.5, -1), 100})

@@ -68,14 +68,18 @@ func RandomRange(min, max float64) Vec3 {
 	}
 }
 
-func RandomUnit() Vec3 {
-	p := RandomRange(-1, 1)
-	return p.UnitVector()
+func RandomUnitSphere() Vec3 {
+	for {
+		p := RandomRange(-1, 1)
+		if p.Length() < 1 {
+			return p.UnitVector()
+		}
+	}
 }
 
 func RandomUnitHemisphere(normal Vec3) Vec3 {
-	result := RandomUnit()
-	if result.Dot(normal) > 0 {
+	result := RandomUnitSphere()
+	if result.Dot(normal) > 0. {
 		return result
 	}
 	return result.Scale(-1)
