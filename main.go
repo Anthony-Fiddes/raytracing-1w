@@ -61,11 +61,21 @@ func (c Color) B() float64 {
 	return c.Vec.Z
 }
 
+func linearToGamma(component float64) float64 {
+	if component > 0 {
+		return math.Sqrt(component)
+	}
+	return 0
+}
+
 func toPPM(c Color) string {
 	c.assertValid()
-	scaledR := int(255.999 * c.R())
-	scaledG := int(255.999 * c.G())
-	scaledB := int(255.999 * c.B())
+	gammaR := linearToGamma(c.R())
+	gammaG := linearToGamma(c.G())
+	gammaB := linearToGamma(c.B())
+	scaledR := int(255.999 * gammaR)
+	scaledG := int(255.999 * gammaG)
+	scaledB := int(255.999 * gammaB)
 	return fmt.Sprintf("%d %d %d\n", scaledR, scaledG, scaledB)
 }
 
