@@ -53,7 +53,7 @@ func (v Vec3) Dot(other Vec3) float64 {
 }
 
 func Random() Vec3 {
-	return Vec3{X: rand.Float64(), Y: rand.Float64(), Z: rand.Float64()}
+	return Vec3{rand.Float64(), rand.Float64(), rand.Float64()}
 }
 
 func randFloatRange(min, max float64) float64 {
@@ -68,7 +68,7 @@ func RandomRange(min, max float64) Vec3 {
 	}
 }
 
-func RandomUnitSphere() Vec3 {
+func RandomUnit() Vec3 {
 	for {
 		p := RandomRange(-1, 1)
 		if p.Length() < 1 {
@@ -78,7 +78,7 @@ func RandomUnitSphere() Vec3 {
 }
 
 func RandomUnitHemisphere(normal Vec3) Vec3 {
-	result := RandomUnitSphere()
+	result := RandomUnit()
 	if result.Dot(normal) > 0. {
 		return result
 	}

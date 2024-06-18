@@ -168,7 +168,12 @@ func (r Ray) Color(h Hittable, tMin float64, tMax float64, depth int) Color {
 	}
 
 	if hit, record := h.Hit(r, tMin, tMax); hit {
-		return Color{record.Normal.Add(vec.New(1, 1, 1)).Divide(2)}
+		// bounce
+		bounceDirection := vec.RandomUnitHemisphere(record.Normal)
+		newRay := Ray{record.HitPoint, bounceDirection}
+		// make objects gray for now
+		colorVec := newRay.Color(h, tMin, tMax, depth-1).Vec.Scale(.5)
+		return Color{colorVec}
 	}
 
 	unitDirection := r.Direction.UnitVector()
@@ -273,16 +278,16 @@ func (s Sphere) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
 	}
 
 	root := (-b - math.Sqrt(discriminant)) / (2. * a)
-	if root <= tMin || root >= tMax {
+	if root <= tMin || tMax <= root {
 		// try the other possible root
 		root = (-b + math.Sqrt(discriminant)) / (2. * a)
-		if root <= tMin || root >= tMax {
+		if root <= tMin || tMax <= root {
 			// still out of the acceptable range
 			return false, HitRecord{}
 		}
 	}
-	hitPoint := d.Scale(root)
-	outwardNormal := hitPoint.Subtract(s.Center).UnitVector()
+	hitPoint := ray.At(root)
+	outwardNormal := hitPoint.Subtract(s.Center).Divide(s.Radius)
 	return true, NewHitRecord(ray, root, outwardNormal, hitPoint)
 }
 
