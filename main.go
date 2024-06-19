@@ -260,6 +260,21 @@ func (l Lambertian) Scatter(record HitRecord) (scattered bool, scatteredRay Ray,
 	return true, newRay, l.Albedo
 }
 
+type Metal struct {
+	Albedo Color
+}
+
+func reflect(v Vec3, normal Vec3) Vec3 {
+	b := normal.Scale(v.Dot(normal))
+	return v.Subtract(b.Scale(2))
+}
+
+func (m Metal) Scatter(record HitRecord) (scattered bool, scatteredRay Ray, attenuation Color) {
+	scatterDirection := reflect(record.Ray.Direction, record.Normal)
+	newRay := Ray{record.HitPoint, scatterDirection}
+	return true, newRay, m.Albedo
+}
+
 type Hittable interface {
 	// Hit returns whether the ray hits the Hittable within the range
 	// [tMin,tMax] along the ray. If hit is false, HitRecord is not valid.
@@ -349,8 +364,14 @@ func (w World) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
 
 func main() {
 	camera := NewCamera(400, 16./9., 100, 50)
+	ground := Sphere{vec.New(0, -100.5, -1), 100, Lambertian{newColor(0.8, 0.8, 0)}}
+	middleSphere := Sphere{vec.New(0, 0, -1.2), 0.5, Lambertian{newColor(0.1, 0.2, 0.5)}}
+	leftSphere := Sphere{vec.New(-1., 0, -1.), 0.5, Metal{newColor(0.8, 0.8, 0.8)}}
+	rightSphere := Sphere{vec.New(1., 0, -1.), 0.5, Metal{newColor(0.8, 0.6, 0.2)}}
 	world := make(World, 0, 3)
-	world = append(world, Sphere{vec.New(0, 0, -1), 0.5, Lambertian{blue}})
-	world = append(world, Sphere{vec.New(0, -100.5, -1), 100, Lambertian{green}})
+	world = append(world, ground)
+	world = append(world, middleSphere)
+	world = append(world, leftSphere)
+	world = append(world, rightSphere)
 	camera.Render(os.Stdout, world)
 }
