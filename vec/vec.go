@@ -36,6 +36,13 @@ func (v Vec3) Scale(factor float64) Vec3 {
 	return v
 }
 
+func (v Vec3) Hadamard(other Vec3) Vec3 {
+	v.X *= other.X
+	v.Y *= other.Y
+	v.Z *= other.Z
+	return v
+}
+
 func (v Vec3) Divide(factor float64) Vec3 {
 	return v.Scale(1. / factor)
 }
@@ -83,4 +90,12 @@ func RandomUnitHemisphere(normal Vec3) Vec3 {
 		return result
 	}
 	return result.Scale(-1)
+}
+
+func IsNearZero(v Vec3) bool {
+	reallySmall := 1e-8
+	xOk := math.Abs(v.X) < reallySmall
+	yOk := math.Abs(v.Y) < reallySmall
+	zOk := math.Abs(v.Z) < reallySmall
+	return xOk && yOk && zOk
 }

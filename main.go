@@ -24,6 +24,8 @@ var (
 	white = newColor(1, 1, 1)
 	black = newColor(0, 0, 0)
 	red   = newColor(1, 0, 0)
+	green = newColor(0, 1, 0)
+	blue  = newColor(0, 0, 1)
 )
 
 func isValidColor(f float64) bool {
@@ -178,13 +180,13 @@ func (r Ray) Color(h Hittable, tMin float64, tMax float64, depth int) Color {
 	}
 
 	if hit, record := h.Hit(r, tMin, tMax); hit {
-		// bounce with lambertian reflection
-		tangentSpherePoint := vec.RandomUnit().Add(record.Normal)
-		bounceDirection := tangentSpherePoint.Subtract(record.HitPoint)
-		newRay := Ray{record.HitPoint, bounceDirection}
-		// make objects gray for now
-		colorVec := newRay.Color(h, tMin, tMax, depth-1).Vec.Scale(.5)
-		return Color{colorVec}
+		scattered, newRay, attenuation := record.Material.Scatter(record)
+		if scattered {
+			colorVec := newRay.Color(h, tMin, tMax, depth-1).Vec.Hadamard(attenuation.Vec)
+			return Color{colorVec}
+		}
+		// ray was absorbed
+		return black
 	}
 
 	unitDirection := r.Direction.UnitVector()
@@ -197,6 +199,7 @@ func (r Ray) Color(h Hittable, tMin float64, tMax float64, depth int) Color {
 }
 
 type HitRecord struct {
+	Ray Ray
 	// Factor to scale ray by to get hit point
 	T float64
 	// Normal vector at the hit point. It points against the ray and is
@@ -207,11 +210,13 @@ type HitRecord struct {
 	Exterior bool
 	// Where the ray hit the geometry
 	HitPoint Vec3
+	// Material of the hit geometry
+	Material Material
 }
 
 // outwardNormal is a normal pointing out of the hit geometry. It must be a unit
 // vector.
-func NewHitRecord(ray Ray, t float64, outwardNormal Vec3, hitPoint Vec3) HitRecord {
+func NewHitRecord(ray Ray, t float64, outwardNormal Vec3, hitPoint Vec3, mat Material) HitRecord {
 	// If the ray * outwardNormal was negative, that would mean that the angle
 	// between the ray and outward normal is obtuse, meaning that the ray DOES point
 	// against the exterior.
@@ -232,7 +237,27 @@ func NewHitRecord(ray Ray, t float64, outwardNormal Vec3, hitPoint Vec3) HitReco
 		)
 	}
 
-	return HitRecord{t, normal, exterior, hitPoint}
+	return HitRecord{ray, t, normal, exterior, hitPoint, mat}
+}
+
+type Material interface {
+	// Scatter returns whether the material scatters the ray and details about
+	// the new ray. If scattered is false, the ray was absorbed and scatteredRay and
+	// attenuation should be ignored.
+	Scatter(record HitRecord) (scattered bool, scatteredRay Ray, attenuation Color)
+}
+
+type Lambertian struct {
+	Albedo Color
+}
+
+func (l Lambertian) Scatter(record HitRecord) (scattered bool, scatteredRay Ray, attenuation Color) {
+	scatterDirection := record.Normal.Add(vec.RandomUnit())
+	if vec.IsNearZero(scatterDirection) {
+		scatterDirection = record.Normal
+	}
+	newRay := Ray{record.HitPoint, scatterDirection}
+	return true, newRay, l.Albedo
 }
 
 type Hittable interface {
@@ -242,8 +267,9 @@ type Hittable interface {
 }
 
 type Sphere struct {
-	Center Vec3
-	Radius float64
+	Center   Vec3
+	Radius   float64
+	Material Material
 }
 
 func (s Sphere) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
@@ -299,7 +325,7 @@ func (s Sphere) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
 	}
 	hitPoint := ray.At(root)
 	outwardNormal := hitPoint.Subtract(s.Center).Divide(s.Radius)
-	return true, NewHitRecord(ray, root, outwardNormal, hitPoint)
+	return true, NewHitRecord(ray, root, outwardNormal, hitPoint, s.Material)
 }
 
 type World []Hittable
@@ -324,7 +350,7 @@ func (w World) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
 func main() {
 	camera := NewCamera(400, 16./9., 100, 50)
 	world := make(World, 0, 3)
-	world = append(world, Sphere{vec.New(0, 0, -1), 0.5})
-	world = append(world, Sphere{vec.New(0, -100.5, -1), 100})
+	world = append(world, Sphere{vec.New(0, 0, -1), 0.5, Lambertian{blue}})
+	world = append(world, Sphere{vec.New(0, -100.5, -1), 100, Lambertian{green}})
 	camera.Render(os.Stdout, world)
 }
