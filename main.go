@@ -302,12 +302,23 @@ func (d Dielectric) Scatter(record HitRecord) (scattered bool, scatteredRay Ray,
 	if record.Exterior {
 		refractionIndex = 1. / refractionIndex
 	}
-	// just refract all rays for now
-	scatterDirection := refract(
-		record.Ray.Direction.UnitVector(),
-		record.Normal,
-		refractionIndex,
-	)
+	unitDirection := record.Ray.Direction.UnitVector()
+	cosTheta := min(unitDirection.Scale(-1).Dot(record.Normal), 1.0)
+	sinTheta := math.Sqrt(1. - (cosTheta * cosTheta))
+	canRefract := refractionIndex*sinTheta <= 1.
+	var scatterDirection Vec3
+	if canRefract {
+		scatterDirection = refract(
+			unitDirection,
+			record.Normal,
+			refractionIndex,
+		)
+	} else {
+		scatterDirection = reflect(
+			unitDirection,
+			record.Normal,
+		)
+	}
 	newRay := Ray{record.HitPoint, scatterDirection}
 	return true, newRay, white
 }
@@ -403,7 +414,7 @@ func main() {
 	camera := NewCamera(400, 16./9., 100, 50)
 	ground := Sphere{vec.New(0, -100.5, -1), 100, Lambertian{newColor(0.8, 0.8, 0)}}
 	middleSphere := Sphere{vec.New(0, 0, -1.2), 0.5, Lambertian{newColor(0.1, 0.2, 0.5)}}
-	leftSphere := Sphere{vec.New(-1., 0, -1.), 0.5, Dielectric{1.5}}
+	leftSphere := Sphere{vec.New(-1., 0, -1.), 0.5, Dielectric{1. / 1.33}}
 	rightSphere := Sphere{vec.New(1., 0, -1.), 0.5, Metal{newColor(0.8, 0.6, 0.2), 1}}
 	world := make(World, 0, 3)
 	world = append(world, ground)
