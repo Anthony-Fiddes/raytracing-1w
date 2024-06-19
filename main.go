@@ -262,6 +262,9 @@ func (l Lambertian) Scatter(record HitRecord) (scattered bool, scatteredRay Ray,
 
 type Metal struct {
 	Albedo Color
+	// Fuzz is a proportion that determines how much the direction of reflected
+	// rays might vary from a theoretically perfect reflection.
+	Fuzz float64
 }
 
 func reflect(v Vec3, normal Vec3) Vec3 {
@@ -270,7 +273,14 @@ func reflect(v Vec3, normal Vec3) Vec3 {
 }
 
 func (m Metal) Scatter(record HitRecord) (scattered bool, scatteredRay Ray, attenuation Color) {
-	scatterDirection := reflect(record.Ray.Direction, record.Normal)
+	if m.Fuzz > 1 || m.Fuzz < 0 {
+		log.Panicf("fuzz must be in the range [0,1]")
+	}
+	scatterDirection := reflect(record.Ray.Direction, record.Normal).UnitVector()
+	scatterDirection = scatterDirection.Add(vec.RandomUnit().Scale(m.Fuzz))
+	if scatterDirection.Dot(record.Normal) <= 0 {
+		return false, Ray{}, Color{}
+	}
 	newRay := Ray{record.HitPoint, scatterDirection}
 	return true, newRay, m.Albedo
 }
@@ -366,8 +376,8 @@ func main() {
 	camera := NewCamera(400, 16./9., 100, 50)
 	ground := Sphere{vec.New(0, -100.5, -1), 100, Lambertian{newColor(0.8, 0.8, 0)}}
 	middleSphere := Sphere{vec.New(0, 0, -1.2), 0.5, Lambertian{newColor(0.1, 0.2, 0.5)}}
-	leftSphere := Sphere{vec.New(-1., 0, -1.), 0.5, Metal{newColor(0.8, 0.8, 0.8)}}
-	rightSphere := Sphere{vec.New(1., 0, -1.), 0.5, Metal{newColor(0.8, 0.6, 0.2)}}
+	leftSphere := Sphere{vec.New(-1., 0, -1.), 0.5, Metal{newColor(0.8, 0.8, 0.8), 0.3}}
+	rightSphere := Sphere{vec.New(1., 0, -1.), 0.5, Metal{newColor(0.8, 0.6, 0.2), 1}}
 	world := make(World, 0, 3)
 	world = append(world, ground)
 	world = append(world, middleSphere)
