@@ -267,9 +267,9 @@ type Metal struct {
 	Fuzz float64
 }
 
-func reflect(v Vec3, normal Vec3) Vec3 {
-	b := normal.Scale(v.Dot(normal))
-	return v.Subtract(b.Scale(2))
+func reflect(direction Vec3, normal Vec3) Vec3 {
+	b := normal.Scale(direction.Dot(normal))
+	return direction.Subtract(b.Scale(2))
 }
 
 func (m Metal) Scatter(record HitRecord) (scattered bool, scatteredRay Ray, attenuation Color) {
@@ -283,6 +283,33 @@ func (m Metal) Scatter(record HitRecord) (scattered bool, scatteredRay Ray, atte
 	}
 	newRay := Ray{record.HitPoint, scatterDirection}
 	return true, newRay, m.Albedo
+}
+
+type Dielectric struct {
+	RefractionIndex float64
+}
+
+func refract(direction Vec3, normal Vec3, refractionIndex float64) Vec3 {
+	cosTheta := min(direction.Scale(-1).Dot(normal), 1.0)
+	rayOutPerpendicular := normal.Scale(cosTheta).Add(direction).Scale(refractionIndex)
+	parallelFactor := -math.Sqrt(math.Abs(1.0 - rayOutPerpendicular.LengthSquared()))
+	rayOutParallel := normal.Scale(parallelFactor)
+	return rayOutParallel.Add(rayOutPerpendicular)
+}
+
+func (d Dielectric) Scatter(record HitRecord) (scattered bool, scatteredRay Ray, attenuation Color) {
+	refractionIndex := d.RefractionIndex
+	if record.Exterior {
+		refractionIndex = 1. / refractionIndex
+	}
+	// just refract all rays for now
+	scatterDirection := refract(
+		record.Ray.Direction.UnitVector(),
+		record.Normal,
+		refractionIndex,
+	)
+	newRay := Ray{record.HitPoint, scatterDirection}
+	return true, newRay, white
 }
 
 type Hittable interface {
@@ -376,7 +403,7 @@ func main() {
 	camera := NewCamera(400, 16./9., 100, 50)
 	ground := Sphere{vec.New(0, -100.5, -1), 100, Lambertian{newColor(0.8, 0.8, 0)}}
 	middleSphere := Sphere{vec.New(0, 0, -1.2), 0.5, Lambertian{newColor(0.1, 0.2, 0.5)}}
-	leftSphere := Sphere{vec.New(-1., 0, -1.), 0.5, Metal{newColor(0.8, 0.8, 0.8), 0.3}}
+	leftSphere := Sphere{vec.New(-1., 0, -1.), 0.5, Dielectric{1.5}}
 	rightSphere := Sphere{vec.New(1., 0, -1.), 0.5, Metal{newColor(0.8, 0.6, 0.2), 1}}
 	world := make(World, 0, 3)
 	world = append(world, ground)

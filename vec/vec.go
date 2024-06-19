@@ -48,11 +48,19 @@ func (v Vec3) Divide(factor float64) Vec3 {
 }
 
 func (v Vec3) Length() float64 {
-	return math.Sqrt(v.X*v.X + v.Y*v.Y + v.Z*v.Z)
+	return math.Sqrt(v.LengthSquared())
+}
+
+func (v Vec3) LengthSquared() float64 {
+	return v.X*v.X + v.Y*v.Y + v.Z*v.Z
 }
 
 func (v Vec3) UnitVector() Vec3 {
-	return v.Divide(v.Length())
+	length := v.Length()
+	if length == 1 {
+		return v
+	}
+	return v.Divide(length)
 }
 
 func (v Vec3) Dot(other Vec3) float64 {
@@ -78,7 +86,9 @@ func RandomRange(min, max float64) Vec3 {
 func RandomUnit() Vec3 {
 	for {
 		p := RandomRange(-1, 1)
-		if p.Length() < 1 {
+		// We care about length < 1, but length^2 < 1^2 also holds and we can
+		// avoid a square root.
+		if p.LengthSquared() < 1 {
 			return p.UnitVector()
 		}
 	}
