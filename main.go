@@ -300,7 +300,7 @@ func refract(direction Vec3, normal Vec3, refractionIndex float64) Vec3 {
 	return rayOutParallel.Add(rayOutPerpendicular)
 }
 
-func reflectance(cosine float64, refractionIndex float64) float64 {
+func reflectanceProbability(cosine float64, refractionIndex float64) float64 {
 	// Schlick's approximation
 	r0 := (1 - refractionIndex) / (1 + refractionIndex)
 	r0 = r0 * r0
@@ -317,7 +317,7 @@ func (d Dielectric) Scatter(record HitRecord) (scattered bool, scatteredRay Ray,
 	sinTheta := math.Sqrt(1. - (cosTheta * cosTheta))
 	canRefract := refractionIndex*sinTheta <= 1.
 	var scatterDirection Vec3
-	if canRefract || reflectance(cosTheta, refractionIndex) <= rand.Float64() {
+	if canRefract && rand.Float64() > reflectanceProbability(cosTheta, refractionIndex) {
 		scatterDirection = refract(
 			unitDirection,
 			record.Normal,
