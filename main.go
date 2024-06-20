@@ -286,6 +286,9 @@ func (m Metal) Scatter(record HitRecord) (scattered bool, scatteredRay Ray, atte
 }
 
 type Dielectric struct {
+	// Refractive index in vacuum or air. To simulate one material in another,
+	// use the ratio of the materials' refractive index to that of the
+	// surrounding medium.
 	RefractionIndex float64
 }
 
@@ -295,6 +298,13 @@ func refract(direction Vec3, normal Vec3, refractionIndex float64) Vec3 {
 	parallelFactor := -math.Sqrt(math.Abs(1.0 - rayOutPerpendicular.LengthSquared()))
 	rayOutParallel := normal.Scale(parallelFactor)
 	return rayOutParallel.Add(rayOutPerpendicular)
+}
+
+func reflectance(cosine float64, refractionIndex float64) float64 {
+	// Schlick's approximation
+	r0 := (1 - refractionIndex) / (1 + refractionIndex)
+	r0 = r0 * r0
+	return r0 + (1-r0)*math.Pow(1-cosine, 5)
 }
 
 func (d Dielectric) Scatter(record HitRecord) (scattered bool, scatteredRay Ray, attenuation Color) {
@@ -307,7 +317,7 @@ func (d Dielectric) Scatter(record HitRecord) (scattered bool, scatteredRay Ray,
 	sinTheta := math.Sqrt(1. - (cosTheta * cosTheta))
 	canRefract := refractionIndex*sinTheta <= 1.
 	var scatterDirection Vec3
-	if canRefract {
+	if canRefract || reflectance(cosTheta, refractionIndex) <= rand.Float64() {
 		scatterDirection = refract(
 			unitDirection,
 			record.Normal,
