@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"math"
 	"math/rand"
@@ -16,10 +15,6 @@ type Vec3 = vec.Vec3
 // X, Y, and Z represent red, green, and blue values. They are floats between 0 and 1
 type Color struct{ Vec Vec3 }
 
-func newColor(r, g, b float64) Color {
-	return Color{Vec3{X: r, Y: g, Z: b}}
-}
-
 var (
 	white = newColor(1, 1, 1)
 	black = newColor(0, 0, 0)
@@ -27,6 +22,10 @@ var (
 	green = newColor(0, 1, 0)
 	blue  = newColor(0, 0, 1)
 )
+
+func newColor(r, g, b float64) Color {
+	return Color{Vec3{X: r, Y: g, Z: b}}
+}
 
 func isValidColor(f float64) bool {
 	if f < 0 || f > 1 {
@@ -61,141 +60,6 @@ func (c Color) G() float64 {
 
 func (c Color) B() float64 {
 	return c.Vec.Z
-}
-
-func linearToGamma(component float64) float64 {
-	if component > 0 {
-		return math.Sqrt(component)
-	}
-	return 0
-}
-
-func toPPM(c Color) string {
-	c.assertValid()
-	gammaR := linearToGamma(c.R())
-	gammaG := linearToGamma(c.G())
-	gammaB := linearToGamma(c.B())
-	scaledR := int(255.999 * gammaR)
-	scaledG := int(255.999 * gammaG)
-	scaledB := int(255.999 * gammaB)
-	return fmt.Sprintf("%d %d %d\n", scaledR, scaledG, scaledB)
-}
-
-// camera is an object in the world
-type camera struct {
-	// Height is the number of pixels up/down
-	Height int
-	// Width is the number of pixels left/right
-	Width       int
-	aspectRatio float64
-	Center      Vec3
-	// distance between camera and viewport
-	focalLength     float64
-	Viewport        viewport
-	SamplesPerPixel int
-	MaxDepth        int
-}
-
-func (c camera) Render(w io.Writer, world Hittable) {
-	fmt.Fprintf(w, "P3\n%d %d\n255\n", c.Width, c.Height)
-	for j := 0; j < c.Height; j++ {
-		fmt.Fprintf(os.Stderr, "\rScanlines remaining: %d ", c.Height-j)
-		for i := 0; i < c.Width; i++ {
-			var pixel Color
-			for range c.SamplesPerPixel {
-				sampleXOffset := rand.Float64() - 0.5
-				sampleYOffset := rand.Float64() - 0.5
-				yPixelCenter := c.Viewport.FirstPixelCenter.Add(c.Viewport.PixelDeltaY.Scale(float64(j) + sampleYOffset))
-				sampleCenter := yPixelCenter.Add(c.Viewport.PixelDeltaX.Scale(float64(i) + sampleXOffset))
-				rayDirection := sampleCenter.Subtract(c.Center)
-				ray := Ray{c.Center, rayDirection}
-				pixel.Vec = pixel.Vec.Add(ray.Color(world, 0.001, math.Inf(1), c.MaxDepth).Vec)
-			}
-			pixel.Vec = pixel.Vec.Divide(float64(c.SamplesPerPixel))
-			fmt.Printf(toPPM(pixel))
-		}
-	}
-	fmt.Fprint(os.Stderr, "\rDone.                    \n")
-}
-
-// viewport represents the image that the camera captures.
-//
-// An increasing x goes to the right and increasing y goes down.
-type viewport struct {
-	width            float64
-	height           float64
-	widthVector      Vec3
-	heightVector     Vec3
-	PixelDeltaX      Vec3
-	PixelDeltaY      Vec3
-	upperLeft        Vec3
-	FirstPixelCenter Vec3
-}
-
-func NewCamera(width int, aspectRatio float64, samplesPerPixel int, maxDepth int) camera {
-	if width <= 0 {
-		panic("width cannot be <= 0")
-	}
-	if aspectRatio <= 0 {
-		panic("aspect ratio cannot be <= 0")
-	}
-	height := int(float64(width) / aspectRatio)
-	if height == 0 {
-		height = 1
-	}
-
-	center := Vec3{X: 0, Y: 0, Z: 0}
-	viewHeight := 2.0
-	viewWidth := viewHeight * float64(width) / float64(height)
-	widthVector := vec.New(viewWidth, 0, 0)
-	heightVector := vec.New(0, -viewHeight, 0)
-	pixelDeltaX := widthVector.Divide(float64(width))
-	pixelDeltaY := heightVector.Divide(float64(height))
-	focalLength := 1.0
-	upperLeft := center.Subtract(vec.New(0, 0, focalLength)).Subtract(widthVector.Divide(2)).Subtract(heightVector.Divide(2))
-	firstPixelCenter := upperLeft.Add(pixelDeltaX.Divide(2)).Add(pixelDeltaY.Divide(2))
-	viewport := viewport{
-		viewWidth, viewHeight, widthVector,
-		heightVector, pixelDeltaX, pixelDeltaY,
-		upperLeft, firstPixelCenter,
-	}
-	return camera{height, width, aspectRatio, center, focalLength, viewport, samplesPerPixel, maxDepth}
-}
-
-type Ray struct {
-	Origin    Vec3
-	Direction Vec3
-}
-
-func (r Ray) At(t float64) Vec3 {
-	distance := r.Direction.Scale(t)
-	result := r.Origin.Add(distance)
-	return result
-}
-
-func (r Ray) Color(h Hittable, tMin float64, tMax float64, depth int) Color {
-	if depth <= 0 {
-		// no more light is gathered
-		return black
-	}
-
-	if hit, record := h.Hit(r, tMin, tMax); hit {
-		scattered, newRay, attenuation := record.Material.Scatter(record)
-		if scattered {
-			colorVec := newRay.Color(h, tMin, tMax, depth-1).Vec.Hadamard(attenuation.Vec)
-			return Color{colorVec}
-		}
-		// ray was absorbed
-		return black
-	}
-
-	unitDirection := r.Direction.UnitVector()
-	// unit vector's y ranges from [-1, 1], so we transform the range to [0, 1]
-	// to do a linear interpolation and get a nice gradient from white to blue
-	a := 0.5*unitDirection.Y + 1
-	lightBlue := newColor(0.5, 0.7, 1)
-	colorVec := white.Vec.Scale(1 - a).Add(lightBlue.Vec.Scale(a))
-	return Color{colorVec}
 }
 
 type HitRecord struct {
@@ -421,15 +285,22 @@ func (w World) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
 }
 
 func main() {
-	camera := NewCamera(400, 16./9., 100, 50)
+	opts := CameraOpts{
+		Position: vec.New(-2,2,1),
+		LookAt:         vec.New(0,0,-1),
+		VerticalFOVDegrees: 20,
+	}
+	camera := NewCamera(opts)
 	ground := Sphere{vec.New(0, -100.5, -1), 100, Lambertian{newColor(0.8, 0.8, 0)}}
 	middleSphere := Sphere{vec.New(0, 0, -1.2), 0.5, Lambertian{newColor(0.1, 0.2, 0.5)}}
-	leftSphere := Sphere{vec.New(-1., 0, -1.), 0.5, Dielectric{1. / 1.33}}
+	leftSphere := Sphere{vec.New(-1., 0, -1.), 0.5, Dielectric{1.5}}
+	leftSphereInside := Sphere{vec.New(-1., 0, -1.), 0.4, Dielectric{1. / 1.5}}
 	rightSphere := Sphere{vec.New(1., 0, -1.), 0.5, Metal{newColor(0.8, 0.6, 0.2), 1}}
 	world := make(World, 0, 3)
 	world = append(world, ground)
 	world = append(world, middleSphere)
 	world = append(world, leftSphere)
+	world = append(world, leftSphereInside)
 	world = append(world, rightSphere)
 	camera.Render(os.Stdout, world)
 }
