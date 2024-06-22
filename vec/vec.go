@@ -43,6 +43,13 @@ func (v Vec3) Hadamard(other Vec3) Vec3 {
 	return v
 }
 
+func (v Vec3) Cross(other Vec3) Vec3 {
+	x := v.Y*other.Z - v.Z*other.Y
+	y := v.Z*other.X - v.X*other.Z
+	z := v.X*other.Y - v.Y*other.X
+	return New(x, y, z)
+}
+
 func (v Vec3) Divide(factor float64) Vec3 {
 	return v.Scale(1. / factor)
 }
@@ -68,7 +75,7 @@ func (v Vec3) Dot(other Vec3) float64 {
 }
 
 func Random() Vec3 {
-	return Vec3{rand.Float64(), rand.Float64(), rand.Float64()}
+	return New(rand.Float64(), rand.Float64(), rand.Float64())
 }
 
 func randFloatRange(min, max float64) float64 {
