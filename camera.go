@@ -268,6 +268,12 @@ func (r Ray) At(t float64) Vec3 {
 	return result
 }
 
+type Hittable interface {
+	// Hit returns whether the ray hits the Hittable within the range
+	// [tMin,tMax] along the ray. If hit is false, HitRecord is not valid.
+	Hit(ray Ray, tMin float64, tMax float64) (hit bool, record HitRecord)
+}
+
 func (r Ray) Color(h Hittable, tMin float64, tMax float64, depth int) Color {
 	if depth <= 0 {
 		// no more light is gathered
