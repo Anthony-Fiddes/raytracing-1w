@@ -291,7 +291,7 @@ func renderRandomSpheres() {
 	for a := -11; a < 11; a++ {
 		for b := -11; b < 11; b++ {
 			chooseMat := rand.Float64()
-			center := vec.New(float64(a)+0.9*rand.Float64(), 0.2, 0.9*rand.Float64())
+			center := vec.New(float64(a)+0.9*rand.Float64(), 0.2, float64(b)+0.9*rand.Float64())
 
 			if center.Subtract(boundary).Length() <= 0.9 {
 				continue
@@ -331,7 +331,7 @@ func renderRandomSpheres() {
 		FocusDist:          10,
 	}
 	camera := NewCamera(opts)
-	camera.Render(os.Stdout, world)
+	camera.RenderParallel(os.Stdout, world)
 }
 
 func renderSimpleScene() {
