@@ -20,19 +20,24 @@ type CameraOpts struct {
 	LookAt             Vec3
 	// Up can be used to determine the sideways tilt of the camera
 	Up Vec3
+	// FocusDist is the distance from the camera to a plane of perfect focus
+	FocusDist float64
+	// DefocusAngle is the degrees
+	DefocusAngle float64
 }
 
 // camera is an object in the world
 type camera struct {
 	// height is the number of pixels up/down
-	height int
-	// Width is the number of pixels left/right
+	height   int
 	viewport viewport
 	CameraOpts
 	// these camera vectors are unit vectors
-	cameraUp    Vec3
-	cameraRight Vec3
-	cameraBack  Vec3
+	upVec                Vec3
+	rightVec             Vec3
+	backVec              Vec3
+	defocusDiskWidthVec  Vec3
+	defocusDiskHeightVec Vec3
 }
 
 // viewport represents the image that the camera captures.
@@ -81,8 +86,8 @@ func NewCamera(opts CameraOpts) camera {
 		height = 1
 	}
 
-	if opts.VerticalFOVDegrees < 0 || 180 < opts.VerticalFOVDegrees {
-		panic("Vertical FOV Degrees must be between 1 and 179")
+	if opts.VerticalFOVDegrees < 0 || opts.VerticalFOVDegrees >= 180 {
+		panic("Vertical FOV Degrees must be between 1 and 180")
 	} else if opts.VerticalFOVDegrees == 0 {
 		opts.VerticalFOVDegrees = defaultFOV
 	}
@@ -114,42 +119,54 @@ func NewCamera(opts CameraOpts) camera {
 		panic("the Up vector and the vector between the CameraPosition and the LookAt position cannot be parallel")
 	}
 
-	cameraBack := opts.Position.Subtract(opts.LookAt).UnitVector()
-	cameraRight := opts.Up.Cross(cameraBack)
-	cameraUp := cameraBack.Cross(cameraRight)
+	if opts.DefocusAngle < 0 || opts.DefocusAngle >= 180 {
+		panic("DefocusAngle must be between 0 and 180")
+	}
 
-	viewport := newViewport(
-		opts.Width, height, opts.LookAt,
-		opts.Position, opts.VerticalFOVDegrees,
-		cameraUp, cameraRight, cameraBack,
-	)
-	return camera{height, viewport, opts, cameraUp, cameraRight, cameraBack}
+	if opts.FocusDist < 0 {
+		panic("FocusDist must be >= 0")
+	} else if opts.FocusDist == 0 {
+		opts.FocusDist = opts.LookAt.Subtract(opts.Position).Length()
+	}
+
+	backVec := opts.Position.Subtract(opts.LookAt).UnitVector()
+	rightVec := opts.Up.Cross(backVec)
+	upVec := backVec.Cross(rightVec)
+	defocusRadius := opts.FocusDist * math.Tan(toRadians(opts.DefocusAngle/2))
+	defocusDiskWidthVec := rightVec.Scale(defocusRadius)
+	defocusDiskHeightVec := upVec.Scale(defocusRadius)
+
+	camera := camera{
+		height: height, CameraOpts: opts,
+		upVec: upVec, rightVec: rightVec, backVec: backVec,
+		defocusDiskWidthVec:  defocusDiskWidthVec,
+		defocusDiskHeightVec: defocusDiskHeightVec,
+	}
+
+	camera.viewport = calculateViewport(camera)
+	return camera
 }
 
 func toRadians(degrees float64) float64 {
 	return degrees * math.Pi / 180
 }
 
-func newViewport(
-	width int, height int, center Vec3,
-	lookFrom Vec3, verticalFOVDegrees float64,
-	cameraUp Vec3, cameraRight Vec3, cameraBack Vec3,
-) viewport {
-	verticalFOVRads := toRadians(verticalFOVDegrees)
+func calculateViewport(c camera) viewport {
+	verticalFOVRads := toRadians(c.VerticalFOVDegrees)
 	// I don't think this calculation makes sense at 180 degrees or more, since
 	// you can no longer draw a straight line between the two vectors.
-	focalLength := center.Subtract(lookFrom).Length()
-	viewHeight := math.Tan(verticalFOVRads/2) * 2 * focalLength
-	viewWidth := viewHeight * float64(width) / float64(height)
-	widthVector := cameraRight.Scale(viewWidth)
-	heightVector := cameraUp.Scale(-viewHeight)
-	pixelDeltaX := widthVector.Divide(float64(width))
-	pixelDeltaY := heightVector.Divide(float64(height))
-	upperLeft := lookFrom.Subtract(cameraBack.Scale(focalLength)).Subtract(widthVector.Divide(2)).Subtract(heightVector.Divide(2))
+	viewHeight := math.Tan(verticalFOVRads/2) * 2 * c.FocusDist
+	viewWidth := viewHeight * float64(c.Width) / float64(c.height)
+
+	widthVector := c.rightVec.Scale(viewWidth)
+	heightVector := c.upVec.Scale(-viewHeight)
+	pixelDeltaX := widthVector.Divide(float64(c.Width))
+	pixelDeltaY := heightVector.Divide(float64(c.height))
+	upperLeft := c.Position.Subtract(c.backVec.Scale(c.FocusDist)).Subtract(widthVector.Divide(2)).Subtract(heightVector.Divide(2))
 	firstPixelCenter := upperLeft.Add(pixelDeltaX.Divide(2)).Add(pixelDeltaY.Divide(2))
 
 	return viewport{
-		viewWidth, viewHeight, center, widthVector,
+		viewWidth, viewHeight, c.LookAt, widthVector,
 		heightVector, pixelDeltaX, pixelDeltaY,
 		upperLeft, firstPixelCenter,
 	}
@@ -162,12 +179,19 @@ func (c camera) Render(w io.Writer, world Hittable) {
 		for i := 0; i < c.Width; i++ {
 			var pixel Color
 			for range c.SamplesPerPixel {
+				rayOrigin := c.Position
+				if c.DefocusAngle > 0 {
+					nudge := vec.RandomDisk()
+					rayOrigin = rayOrigin.Add(c.defocusDiskWidthVec.Scale(nudge.X))
+					rayOrigin = rayOrigin.Add(c.defocusDiskHeightVec.Scale(nudge.Y))
+				}
+
 				sampleXOffset := rand.Float64() - 0.5
 				sampleYOffset := rand.Float64() - 0.5
 				yPixelCenter := c.viewport.firstPixelCenter.Add(c.viewport.pixelDeltaY.Scale(float64(j) + sampleYOffset))
 				sampleCenter := yPixelCenter.Add(c.viewport.pixelDeltaX.Scale(float64(i) + sampleXOffset))
-				rayDirection := sampleCenter.Subtract(c.Position)
-				ray := Ray{c.Position, rayDirection}
+				rayDirection := sampleCenter.Subtract(rayOrigin)
+				ray := Ray{rayOrigin, rayDirection}
 				pixel.Vec = pixel.Vec.Add(ray.Color(world, 0.001, math.Inf(1), c.MaxBounces).Vec)
 			}
 			pixel.Vec = pixel.Vec.Divide(float64(c.SamplesPerPixel))

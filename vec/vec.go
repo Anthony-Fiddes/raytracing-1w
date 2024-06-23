@@ -101,6 +101,15 @@ func RandomUnit() Vec3 {
 	}
 }
 
+func RandomDisk() Vec3 {
+	for {
+		p := New(randFloatRange(-1, 1), randFloatRange(-1, 1), 0)
+		if p.LengthSquared() < 1 {
+			return p.UnitVector()
+		}
+	}
+}
+
 func RandomUnitHemisphere(normal Vec3) Vec3 {
 	result := RandomUnit()
 	if result.Dot(normal) > 0. {

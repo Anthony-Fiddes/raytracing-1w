@@ -284,13 +284,57 @@ func (w World) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
 	return hitAnything, closestRecord
 }
 
-func main() {
+func renderRandomSpheres() {
+	world := make(World, 0)
+	boundary := vec.New(4, 0.2, 0)
+	glassMat := &Dielectric{1.5}
+	for a := -11; a < 11; a++ {
+		for b := -11; b < 11; b++ {
+			chooseMat := rand.Float64()
+			center := vec.New(float64(a)+0.9*rand.Float64(), 0.2, 0.9*rand.Float64())
+
+			if center.Subtract(boundary).Length() <= 0.9 {
+				continue
+			}
+
+			if chooseMat < 0.8 {
+				albedo := Color{vec.Random().Hadamard(vec.Random())}
+				material := Lambertian{albedo}
+				world = append(world, Sphere{center, 0.2, material})
+			} else if chooseMat < 0.95 {
+				albedo := Color{vec.RandomRange(0.5, 1)}
+				// fuzz in range [0, 0.5)
+				fuzz := (rand.Float64() + 1) / 4
+				material := Metal{albedo, fuzz}
+				world = append(world, Sphere{center, 0.2, material})
+			} else {
+				world = append(world, Sphere{center, 0.2, glassMat})
+			}
+		}
+	}
+
+	world = append(world, Sphere{vec.New(0, -1000, 0), 1000, Lambertian{newColor(0.5, 0.5, 0.5)}})
+	world = append(world, Sphere{vec.New(0, 1, 0), 1, glassMat})
+	world = append(world, Sphere{vec.New(-4, 1, 0), 1, Lambertian{newColor(0.4, 0.2, 0.1)}})
+	world = append(world, Sphere{vec.New(4, 1, 0), 1, Metal{newColor(0.7, 0.6, 0.5), 0}})
+
 	opts := CameraOpts{
-		Position: vec.New(-2,2,1),
-		LookAt:         vec.New(0,0,-1),
+		AspectRatio:        16. / 9.,
+		Width:              1200,
+		SamplesPerPixel:    100,
+		MaxBounces:         50,
 		VerticalFOVDegrees: 20,
+		Position:           vec.New(13, 2, 3),
+		LookAt:             vec.New(0, 0, 0),
+		Up:                 vec.New(0, 1, 0),
+		DefocusAngle:       0.6,
+		FocusDist:          10,
 	}
 	camera := NewCamera(opts)
+	camera.Render(os.Stdout, world)
+}
+
+func renderSimpleScene() {
 	ground := Sphere{vec.New(0, -100.5, -1), 100, Lambertian{newColor(0.8, 0.8, 0)}}
 	middleSphere := Sphere{vec.New(0, 0, -1.2), 0.5, Lambertian{newColor(0.1, 0.2, 0.5)}}
 	leftSphere := Sphere{vec.New(-1., 0, -1.), 0.5, Dielectric{1.5}}
@@ -302,5 +346,18 @@ func main() {
 	world = append(world, leftSphere)
 	world = append(world, leftSphereInside)
 	world = append(world, rightSphere)
+
+	opts := CameraOpts{
+		Position:           vec.New(-2, 2, 1),
+		LookAt:             vec.New(0, 0, -1),
+		VerticalFOVDegrees: 20,
+		DefocusAngle:       10,
+		FocusDist:          3.4,
+	}
+	camera := NewCamera(opts)
 	camera.Render(os.Stdout, world)
+}
+
+func main() {
+	renderRandomSpheres()
 }
