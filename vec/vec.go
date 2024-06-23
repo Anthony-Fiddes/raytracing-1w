@@ -104,8 +104,8 @@ func RandomUnit() Vec3 {
 func RandomDisk() Vec3 {
 	for {
 		p := New(randFloatRange(-1, 1), randFloatRange(-1, 1), 0)
-		if p.LengthSquared() < 1 {
-			return p.UnitVector()
+		if p.LengthSquared() <= 1 {
+			return p
 		}
 	}
 }
