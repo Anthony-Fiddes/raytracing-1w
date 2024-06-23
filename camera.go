@@ -201,6 +201,44 @@ func (c camera) Render(w io.Writer, world Hittable) {
 	fmt.Fprint(os.Stderr, "\rDone.                    \n")
 }
 
+func (c camera) RenderParallel(w io.Writer, world Hittable) {
+	fmt.Fprintf(w, "P3\n%d %d\n255\n", c.Width, c.height)
+	for j := 0; j < c.height; j++ {
+		fmt.Fprintf(os.Stderr, "\rScanlines remaining: %d ", c.height-j)
+		for i := 0; i < c.Width; i++ {
+			samples := make(chan Vec3, c.SamplesPerPixel)
+			for range c.SamplesPerPixel {
+				go func() {
+					rayOrigin := c.Position
+					if c.DefocusAngle > 0 {
+						nudge := vec.RandomDisk()
+						rayOrigin = rayOrigin.Add(c.defocusDiskWidthVec.Scale(nudge.X))
+						rayOrigin = rayOrigin.Add(c.defocusDiskHeightVec.Scale(nudge.Y))
+					}
+
+					sampleXOffset := rand.Float64() - 0.5
+					sampleYOffset := rand.Float64() - 0.5
+					yPixelCenter := c.viewport.firstPixelCenter.Add(c.viewport.pixelDeltaY.Scale(float64(j) + sampleYOffset))
+					sampleCenter := yPixelCenter.Add(c.viewport.pixelDeltaX.Scale(float64(i) + sampleXOffset))
+					rayDirection := sampleCenter.Subtract(rayOrigin)
+					ray := Ray{rayOrigin, rayDirection}
+					samples <- ray.Color(world, 0.001, math.Inf(1), c.MaxBounces).Vec
+				}()
+			}
+
+			var pixel Color
+			for range c.SamplesPerPixel {
+				next := <-samples
+				pixel.Vec = pixel.Vec.Add(next)
+			}
+			close(samples)
+			pixel.Vec = pixel.Vec.Divide(float64(c.SamplesPerPixel))
+			fmt.Printf(toPPM(pixel))
+		}
+	}
+	fmt.Fprint(os.Stderr, "\rDone.                    \n")
+}
+
 func toPPM(c Color) string {
 	c.assertValid()
 	gammaR := linearToGamma(c.R())
