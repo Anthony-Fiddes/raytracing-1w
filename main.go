@@ -336,6 +336,7 @@ func renderSimpleScene(opts CameraOpts) {
 
 func main() {
 	scene := flag.String("scene", "simple", "random | simple")
+	parallel := flag.Bool("parallel", true, "whether or not to render in parallel")
 	flag.Parse()
 
 	if *scene != "random" && *scene != "simple" {
@@ -358,6 +359,7 @@ func main() {
 				Up:                 vec.New(0, 1, 0),
 				DefocusAngle:       0.6,
 				FocusDist:          10,
+				Parallel:           *parallel,
 			},
 		)
 	} else if *scene == "simple" {
@@ -368,6 +370,7 @@ func main() {
 				VerticalFOVDegrees: 20,
 				DefocusAngle:       10,
 				FocusDist:          3.4,
+				Parallel:           *parallel,
 			},
 		)
 	}
