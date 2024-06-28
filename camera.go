@@ -27,6 +27,8 @@ type CameraOpts struct {
 	DefocusAngle float64
 	Out          io.Writer
 	Log          io.Writer
+	// Parallel specifies whether the render uses multiple threads or not
+	Parallel bool
 }
 
 // camera is an object in the world
@@ -185,6 +187,14 @@ func calculateViewport(c camera) viewport {
 }
 
 func (c camera) Render(world Hittable) {
+	if c.Parallel {
+		c.renderParallel(world)
+		return
+	}
+	c.render(world)
+}
+
+func (c camera) render(world Hittable) {
 	fmt.Fprintf(c.Out, "P3\n%d %d\n255\n", c.Width, c.height)
 	for j := 0; j < c.height; j++ {
 		fmt.Fprintf(c.Log, "\rScanlines remaining: %d ", c.height-j)
@@ -213,7 +223,7 @@ func (c camera) Render(world Hittable) {
 	fmt.Fprint(c.Log, "\rDone.                    \n")
 }
 
-func (c camera) RenderParallel(world Hittable) {
+func (c camera) renderParallel(world Hittable) {
 	type pos struct {
 		i, j int
 	}

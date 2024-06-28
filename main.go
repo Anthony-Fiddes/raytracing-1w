@@ -314,7 +314,7 @@ func renderRandomSpheres(opts CameraOpts) {
 	world = append(world, Sphere{vec.New(4, 1, 0), 1, Metal{newColor(0.7, 0.6, 0.5), 0}})
 
 	camera := NewCamera(opts)
-	camera.RenderParallel(world)
+	camera.Render(world)
 }
 
 func renderSimpleScene(opts CameraOpts) {
@@ -331,7 +331,7 @@ func renderSimpleScene(opts CameraOpts) {
 	world = append(world, rightSphere)
 
 	camera := NewCamera(opts)
-	camera.RenderParallel(world)
+	camera.Render(world)
 }
 
 func main() {
