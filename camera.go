@@ -217,7 +217,7 @@ func (c camera) render(world Hittable) {
 				pixel.Vec = pixel.Vec.Add(ray.Color(world, 0.001, math.Inf(1), c.MaxBounces).Vec)
 			}
 			pixel.Vec = pixel.Vec.Divide(float64(c.SamplesPerPixel))
-			fmt.Fprintf(c.Out, toPPM(pixel))
+			writePPM(pixel, c.Out)
 		}
 	}
 	fmt.Fprint(c.Log, "\rDone.                    \n")
@@ -272,7 +272,7 @@ func (c camera) renderParallel(world Hittable) {
 				pixel.Vec = pixel.Vec.Add(next)
 			}
 			pixel.Vec = pixel.Vec.Divide(float64(c.SamplesPerPixel))
-			fmt.Fprintf(c.Out, toPPM(pixel))
+			writePPM(pixel, c.Out)
 		}
 	}
 	close(pixelPositions)
@@ -280,7 +280,7 @@ func (c camera) renderParallel(world Hittable) {
 	fmt.Fprint(c.Log, "\rDone.                    \n")
 }
 
-func toPPM(c Color) string {
+func writePPM(c Color, w io.Writer) {
 	c.assertValid()
 	gammaR := linearToGamma(c.R())
 	gammaG := linearToGamma(c.G())
@@ -288,7 +288,7 @@ func toPPM(c Color) string {
 	scaledR := int(255.999 * gammaR)
 	scaledG := int(255.999 * gammaG)
 	scaledB := int(255.999 * gammaB)
-	return fmt.Sprintf("%d %d %d\n", scaledR, scaledG, scaledB)
+	fmt.Fprintf(w, "%d %d %d\n", scaledR, scaledG, scaledB)
 }
 
 func linearToGamma(component float64) float64 {
