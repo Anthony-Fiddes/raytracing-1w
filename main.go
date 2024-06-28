@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"math"
@@ -278,7 +279,7 @@ func (w World) Hit(ray Ray, tMin float64, tMax float64) (bool, HitRecord) {
 	return hitAnything, closestRecord
 }
 
-func renderRandomSpheres() {
+func renderRandomSpheres(opts CameraOpts) {
 	world := make(World, 0)
 	boundary := vec.New(4, 0.2, 0)
 	glassMat := &Dielectric{1.5}
@@ -312,23 +313,11 @@ func renderRandomSpheres() {
 	world = append(world, Sphere{vec.New(-4, 1, 0), 1, Lambertian{newColor(0.4, 0.2, 0.1)}})
 	world = append(world, Sphere{vec.New(4, 1, 0), 1, Metal{newColor(0.7, 0.6, 0.5), 0}})
 
-	opts := CameraOpts{
-		AspectRatio:        16. / 9.,
-		Width:              1200,
-		SamplesPerPixel:    100,
-		MaxBounces:         50,
-		VerticalFOVDegrees: 20,
-		Position:           vec.New(13, 2, 3),
-		LookAt:             vec.New(0, 0, 0),
-		Up:                 vec.New(0, 1, 0),
-		DefocusAngle:       0.6,
-		FocusDist:          10,
-	}
 	camera := NewCamera(opts)
-	camera.RenderParallel(os.Stdout, world)
+	camera.RenderParallel(world)
 }
 
-func renderSimpleScene() {
+func renderSimpleScene(opts CameraOpts) {
 	ground := Sphere{vec.New(0, -100.5, -1), 100, Lambertian{newColor(0.8, 0.8, 0)}}
 	middleSphere := Sphere{vec.New(0, 0, -1.2), 0.5, Lambertian{newColor(0.1, 0.2, 0.5)}}
 	leftSphere := Sphere{vec.New(-1., 0, -1.), 0.5, Dielectric{1.5}}
@@ -341,17 +330,45 @@ func renderSimpleScene() {
 	world = append(world, leftSphereInside)
 	world = append(world, rightSphere)
 
-	opts := CameraOpts{
-		Position:           vec.New(-2, 2, 1),
-		LookAt:             vec.New(0, 0, -1),
-		VerticalFOVDegrees: 20,
-		DefocusAngle:       10,
-		FocusDist:          3.4,
-	}
 	camera := NewCamera(opts)
-	camera.Render(os.Stdout, world)
+	camera.RenderParallel(world)
 }
 
 func main() {
-	renderRandomSpheres()
+	scene := flag.String("scene", "simple", "random | simple")
+	flag.Parse()
+
+	if *scene != "random" && *scene != "simple" {
+		fmt.Fprintln(os.Stderr, "scene must be 'random' or 'simple'")
+		fmt.Fprintln(os.Stderr)
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	if *scene == "random" {
+		renderRandomSpheres(
+			CameraOpts{
+				AspectRatio:        16. / 9.,
+				Width:              300,
+				SamplesPerPixel:    100,
+				MaxBounces:         50,
+				VerticalFOVDegrees: 20,
+				Position:           vec.New(13, 2, 3),
+				LookAt:             vec.New(0, 0, 0),
+				Up:                 vec.New(0, 1, 0),
+				DefocusAngle:       0.6,
+				FocusDist:          10,
+			},
+		)
+	} else if *scene == "simple" {
+		renderSimpleScene(
+			CameraOpts{
+				Position:           vec.New(-2, 2, 1),
+				LookAt:             vec.New(0, 0, -1),
+				VerticalFOVDegrees: 20,
+				DefocusAngle:       10,
+				FocusDist:          3.4,
+			},
+		)
+	}
 }

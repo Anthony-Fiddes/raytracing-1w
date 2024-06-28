@@ -25,6 +25,8 @@ type CameraOpts struct {
 	FocusDist float64
 	// DefocusAngle is the degrees
 	DefocusAngle float64
+	Out          io.Writer
+	Log          io.Writer
 }
 
 // camera is an object in the world
@@ -68,6 +70,8 @@ func NewCamera(opts CameraOpts) camera {
 	var (
 		defaultUp     = vec.New(0, 1, 0)
 		defaultLookAt = vec.New(0, 0, -1)
+		defaultOut    = os.Stdout
+		defaultLog    = os.Stderr
 	)
 
 	if opts.Width < 0 {
@@ -130,6 +134,13 @@ func NewCamera(opts CameraOpts) camera {
 		opts.FocusDist = opts.LookAt.Subtract(opts.Position).Length()
 	}
 
+	if opts.Out == nil {
+		opts.Out = defaultOut
+	}
+	if opts.Log == nil {
+		opts.Log = defaultLog
+	}
+
 	backVec := opts.Position.Subtract(opts.LookAt).UnitVector()
 	rightVec := opts.Up.Cross(backVec)
 	upVec := backVec.Cross(rightVec)
@@ -173,10 +184,10 @@ func calculateViewport(c camera) viewport {
 	}
 }
 
-func (c camera) Render(w io.Writer, world Hittable) {
-	fmt.Fprintf(w, "P3\n%d %d\n255\n", c.Width, c.height)
+func (c camera) Render(world Hittable) {
+	fmt.Fprintf(c.Out, "P3\n%d %d\n255\n", c.Width, c.height)
 	for j := 0; j < c.height; j++ {
-		fmt.Fprintf(os.Stderr, "\rScanlines remaining: %d ", c.height-j)
+		fmt.Fprintf(c.Log, "\rScanlines remaining: %d ", c.height-j)
 		for i := 0; i < c.Width; i++ {
 			var pixel Color
 			for range c.SamplesPerPixel {
@@ -196,13 +207,13 @@ func (c camera) Render(w io.Writer, world Hittable) {
 				pixel.Vec = pixel.Vec.Add(ray.Color(world, 0.001, math.Inf(1), c.MaxBounces).Vec)
 			}
 			pixel.Vec = pixel.Vec.Divide(float64(c.SamplesPerPixel))
-			fmt.Printf(toPPM(pixel))
+			fmt.Fprintf(c.Out, toPPM(pixel))
 		}
 	}
-	fmt.Fprint(os.Stderr, "\rDone.                    \n")
+	fmt.Fprint(c.Log, "\rDone.                    \n")
 }
 
-func (c camera) RenderParallel(w io.Writer, world Hittable) {
+func (c camera) RenderParallel(world Hittable) {
 	type pos struct {
 		i, j int
 	}
@@ -235,9 +246,9 @@ func (c camera) RenderParallel(w io.Writer, world Hittable) {
 		go sampleWorker(c, world, pixelPositions, samples)
 	}
 
-	fmt.Fprintf(w, "P3\n%d %d\n255\n", c.Width, c.height)
+	fmt.Fprintf(c.Out, "P3\n%d %d\n255\n", c.Width, c.height)
 	for j := 0; j < c.height; j++ {
-		fmt.Fprintf(os.Stderr, "\rScanlines remaining: %d ", c.height-j)
+		fmt.Fprintf(c.Log, "\rScanlines remaining: %d ", c.height-j)
 		for i := 0; i < c.Width; i++ {
 			go func() {
 				for range c.SamplesPerPixel {
@@ -251,12 +262,12 @@ func (c camera) RenderParallel(w io.Writer, world Hittable) {
 				pixel.Vec = pixel.Vec.Add(next)
 			}
 			pixel.Vec = pixel.Vec.Divide(float64(c.SamplesPerPixel))
-			fmt.Printf(toPPM(pixel))
+			fmt.Fprintf(c.Out, toPPM(pixel))
 		}
 	}
 	close(pixelPositions)
 	close(samples)
-	fmt.Fprint(os.Stderr, "\rDone.                    \n")
+	fmt.Fprint(c.Log, "\rDone.                    \n")
 }
 
 func toPPM(c Color) string {
