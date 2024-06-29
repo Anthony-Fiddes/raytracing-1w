@@ -224,29 +224,6 @@ func (c camera) render(world Hittable) {
 }
 
 func (c camera) renderParallel(world Hittable) {
-	type pos struct {
-		i, j int
-	}
-
-	sampleWorker := func(c camera, world Hittable, pixelPositions <-chan pos, samples chan<- Vec3) {
-		for pos := range pixelPositions {
-			rayOrigin := c.Position
-			if c.DefocusAngle > 0 {
-				nudge := vec.RandomDisk()
-				rayOrigin = rayOrigin.Add(c.defocusDiskWidthVec.Scale(nudge.X))
-				rayOrigin = rayOrigin.Add(c.defocusDiskHeightVec.Scale(nudge.Y))
-			}
-
-			sampleXOffset := rand.Float64() - 0.5
-			sampleYOffset := rand.Float64() - 0.5
-			yPixelCenter := c.viewport.firstPixelCenter.Add(c.viewport.pixelDeltaY.Scale(float64(pos.j) + sampleYOffset))
-			sampleCenter := yPixelCenter.Add(c.viewport.pixelDeltaX.Scale(float64(pos.i) + sampleXOffset))
-			rayDirection := sampleCenter.Subtract(rayOrigin)
-			ray := Ray{rayOrigin, rayDirection}
-			samples <- ray.Color(world, 0.001, math.Inf(1), c.MaxBounces).Vec
-		}
-	}
-
 	// using a worker pool here because starting a goroutine for every sample
 	// was actually slower than the single-threaded version.
 	numWorkers := runtime.GOMAXPROCS(0)
@@ -278,6 +255,29 @@ func (c camera) renderParallel(world Hittable) {
 	close(pixelPositions)
 	close(samples)
 	fmt.Fprint(c.Log, "\rDone.                    \n")
+}
+
+func sampleWorker(c camera, world Hittable, pixelPositions <-chan pos, samples chan<- Vec3) {
+	for pos := range pixelPositions {
+		rayOrigin := c.Position
+		if c.DefocusAngle > 0 {
+			nudge := vec.RandomDisk()
+			rayOrigin = rayOrigin.Add(c.defocusDiskWidthVec.Scale(nudge.X))
+			rayOrigin = rayOrigin.Add(c.defocusDiskHeightVec.Scale(nudge.Y))
+		}
+
+		sampleXOffset := rand.Float64() - 0.5
+		sampleYOffset := rand.Float64() - 0.5
+		yPixelCenter := c.viewport.firstPixelCenter.Add(c.viewport.pixelDeltaY.Scale(float64(pos.j) + sampleYOffset))
+		sampleCenter := yPixelCenter.Add(c.viewport.pixelDeltaX.Scale(float64(pos.i) + sampleXOffset))
+		rayDirection := sampleCenter.Subtract(rayOrigin)
+		ray := Ray{rayOrigin, rayDirection}
+		samples <- ray.Color(world, 0.001, math.Inf(1), c.MaxBounces).Vec
+	}
+}
+
+type pos struct {
+	i, j int
 }
 
 func writePPM(c Color, w io.Writer) {
