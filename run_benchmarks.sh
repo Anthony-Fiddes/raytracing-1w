@@ -1,2 +1,2 @@
 #!/bin/sh
-go test -bench . -benchmem -memprofile memprofile -benchtime 5x
+go test -bench . -benchmem -memprofile memprofile -cpuprofile cpuprofile -benchtime 5x
