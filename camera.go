@@ -250,6 +250,8 @@ func (c camera) renderParallel(world Hittable) {
 	// using a worker pool here because starting a goroutine for every sample
 	// was actually slower than the single-threaded version.
 	numWorkers := runtime.GOMAXPROCS(0)
+	// pixelPositions must be buffered as large as the number of samples per
+	// pixel or we'll deadlock when the main routine sends on it.
 	pixelPositions := make(chan pos, c.SamplesPerPixel)
 	samples := make(chan Vec3, c.SamplesPerPixel)
 	for i := 0; i < numWorkers; i++ {
@@ -260,11 +262,9 @@ func (c camera) renderParallel(world Hittable) {
 	for j := 0; j < c.height; j++ {
 		fmt.Fprintf(c.Log, "\rScanlines remaining: %d ", c.height-j)
 		for i := 0; i < c.Width; i++ {
-			go func() {
-				for range c.SamplesPerPixel {
-					pixelPositions <- pos{i, j}
-				}
-			}()
+			for range c.SamplesPerPixel {
+				pixelPositions <- pos{i, j}
+			}
 
 			var pixel Color
 			for range c.SamplesPerPixel {
