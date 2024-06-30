@@ -22,7 +22,9 @@ ok  	github.com/Anthony-Fiddes/raytracing-1w	180.542s
 ```
 
 So that's ~1.5x faster for the simple scene and ~5.86x faster for a more
-complicated scene that looks like the render above.
+complicated scene that looks like the render above. These benchmarks are
+basically shrunken down versions of renders from the book so they don't take
+forever to complete a run.
 
 I ran this on an M1 Max with 8 performance cores and 2 efficiency cores, so the
 peak theoretical increase would have been somewhere around 8x. Realistically the
